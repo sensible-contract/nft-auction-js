@@ -78,7 +78,6 @@ export async function createNftAuctionContractTx(
   {
     nftSigner,
     witnessOracle,
-    codehash,
     nftInput,
     senderAddress,
     startBsvPrice,
@@ -89,7 +88,6 @@ export async function createNftAuctionContractTx(
   }: {
     nftSigner: NftSigner;
     witnessOracle: WitnessOracle;
-    codehash: string;
     senderAddress: string;
     startBsvPrice: number;
     endTimeStamp: number;
@@ -118,7 +116,7 @@ export async function createNftAuctionContractTx(
     new Ripemd160(new bsv.Address(senderAddress).hashBuffer.toString("hex")),
     startBsvPrice,
     new Bytes(witnessOracle.rabinPubKeyHash.toString("hex")),
-    new Bytes(codehash),
+    new Bytes(nftInput.codehash),
     new Bytes(nftID),
     endTimeStamp,
     new Bytes(toHex(nftSigner.rabinPubKeyHashArrayHash))
@@ -129,14 +127,14 @@ export async function createNftAuctionContractTx(
     timeRabinPubkeyHash: witnessOracle.rabinPubKeyHash.toString("hex"),
     endTimestamp: endTimeStamp,
     nftID: toHex(nftProto.getNftID(nftInput.lockingScript.toBuffer())),
-    nftCodeHash: codehash,
+    nftCodeHash: nftInput.codehash,
     startBsvPrice,
     senderAddress: new bsv.Address(senderAddress).hashBuffer.toString("hex"),
     bidBsvPrice: 0,
     bidderAddress: getZeroAddress(provider.network).hashBuffer.toString("hex"),
     sensibleID: {
       txid: utxos[0].txId,
-      index: 0,
+      index: utxos[0].outputIndex,
     },
   });
   const txComposer = new TxComposer();
@@ -178,14 +176,12 @@ export async function createNftAuctionContractTx(
 export async function createNftForAuctionContractTx(
   provider: SensiblequeryProvider,
   {
-    codehash,
     nftInput,
     auctionContractHash,
     opreturnData,
     utxos,
     changeAddress,
   }: {
-    codehash: string;
     auctionContractHash: string;
     nftInput: NftInput;
     opreturnData?: any;
@@ -211,7 +207,7 @@ export async function createNftForAuctionContractTx(
     new Bytes(auctionContractHash)
   );
   nftForAuctionContract.setFormatedDataPart({
-    codehash,
+    codehash: nftInput.codehash,
     auctionContractHash,
     nftID: toHex(nftProto.getNftID(nftInput.lockingScript.toBuffer())),
   });

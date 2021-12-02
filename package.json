@@ -1,6 +1,6 @@
 {
   "name": "nft-auction-js",
-  "version": "0.1.0-beta.1",
+  "version": "0.1.0-beta.3",
   "description": "Sensible Contract NFT Auction Javascript SDK",
   "main": "lib/index.js",
   "engines": {

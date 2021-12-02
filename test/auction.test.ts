@@ -154,7 +154,7 @@ function cleanBsvUtxos() {
 }
 
 describe("Auction Test", () => {
-  describe.skip("has bidder test ", () => {
+  describe("has bidder test ", () => {
     let provider: SensiblequeryProvider;
     let nftSigner: NftSigner;
     let witnessOracle: WitnessOracle;
@@ -247,7 +247,6 @@ describe("Auction Test", () => {
       let nftAuctionRet = await createNftAuctionContractTx(provider, {
         nftSigner,
         witnessOracle,
-        codehash,
         nftInput,
         senderAddress: CoffeeShop.address.toString(),
         startBsvPrice: 500,
@@ -354,7 +353,6 @@ describe("Auction Test", () => {
       });
 
       let nftForAuctionRet = await createNftForAuctionContractTx(provider, {
-        codehash,
         nftInput,
         auctionContractHash: auctionContractHash,
         utxos,
@@ -462,7 +460,7 @@ describe("Auction Test", () => {
     });
   });
 
-  describe("no bidder test ", () => {
+  describe.skip("no bidder test ", () => {
     let provider: SensiblequeryProvider;
     let nftSigner: NftSigner;
     let witnessOracle: WitnessOracle;
@@ -555,7 +553,6 @@ describe("Auction Test", () => {
       let nftAuctionRet = await createNftAuctionContractTx(provider, {
         nftSigner,
         witnessOracle,
-        codehash,
         nftInput,
         senderAddress: CoffeeShop.address.toString(),
         startBsvPrice: 500,
@@ -593,7 +590,6 @@ describe("Auction Test", () => {
       });
 
       let nftForAuctionRet = await createNftForAuctionContractTx(provider, {
-        codehash,
         nftInput,
         auctionContractHash: auctionContractHash,
         utxos,

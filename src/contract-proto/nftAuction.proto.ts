@@ -32,6 +32,7 @@ export enum GENESIS_FLAG {
 // <type specific data> + <proto header>
 // <proto header> = <type(4 bytes)> + <'sensible'(8 bytes)>
 //<nft type specific data> = <timeRabinPubkeyHash>(20byte) +<endTimeStamp>(8byte) +  <nftID>(20byte) + <nftCodeHash>(20byte) +  <startBsvPrice(8byte)> + <sendderAddress(20byte)> + <bidBsvPrice>(8byte) + <bidderAddress(20byte)> + <sensibleID(36 bytes)>
+
 const SENSIBLE_ID_LEN = 36;
 const BIDDER_ADDRESS_LEN = 20;
 const BID_BSV_PRICE_LEN = 8;
