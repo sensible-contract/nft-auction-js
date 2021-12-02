@@ -1,0 +1,111 @@
+import "util.scrypt";
+import "protoheader.scrypt";
+
+library NftAuctionProto {
+
+    static bytes NULL_SENSIBLE_ID = b'000000000000000000000000000000000000000000000000000000000000000000000000';
+    static const bytes NULL_ADDRESS = b'0000000000000000000000000000000000000000';
+
+    // <type specific data> + <proto header>
+    //<nft auction type specific data> = 
+    //  <sensibleId(36byte)> +
+    //  <bidderAddress(20byte)> +
+    //  <bidBsvPrice>(8byte) +
+    //  <sendderAddress(20byte)> +
+    //  <startBsvPrice(8byte)> + 
+    //  <nftCodeHash>(20byte) +
+    //  <nftID>(20byte) + 
+    //  <endTimeStamp>(8byte) +
+    //  <timeRabinPubkeyHash>(20byte)
+
+    // nftAuction PROTO_TYPE = 0x00010004
+
+    static const int SENSIBLE_ID_LEN = 36;
+    static const int BIDDER_ADDRESS_LEN = 20;
+    static const int BID_BSV_PRICE_LEN = 8;
+    static const int SENDDER_ADDRESS_LEN = 20;
+    static const int START_BSV_PRICE_LEN = 8;
+    static const int NFT_CODE_HASH_LEN = 20;
+    static const int NFT_ID_LEN = 20;
+    static const int END_TIMESTAMP_LEN = 8;
+    static const int TIME_RABIN_PUBKEY_HASH_LEN = 20;
+    static const int RABIN_PUBKEY_HASH_ARRAY_HASH_LEN = 20;
+
+    static int SENSIBLE_ID_OFFSET = ProtoHeader.HEADER_LEN + SENSIBLE_ID_LEN;
+    static int BIDDER_ADDRESS_OFFSET = SENSIBLE_ID_OFFSET + BIDDER_ADDRESS_LEN;
+    static int BID_BSV_PRICE_OFFSET = BIDDER_ADDRESS_OFFSET + BID_BSV_PRICE_LEN;
+    static int SENDER_ADDRESS_OFFSET = BID_BSV_PRICE_OFFSET + SENDDER_ADDRESS_LEN;
+    static int START_BSV_PRICE_OFFESET = SENDER_ADDRESS_OFFSET + START_BSV_PRICE_LEN;
+    static int NFT_CODE_HASH_OFFSET = START_BSV_PRICE_OFFESET + NFT_CODE_HASH_LEN;
+    static int NFT_ID_OFFSET = NFT_CODE_HASH_OFFSET + NFT_ID_LEN;
+    static int END_TIMESTAMP_OFFSET = NFT_ID_OFFSET + END_TIMESTAMP_LEN;
+    static int TIME_RABIN_PUBKEY_HASH_OFFSET = END_TIMESTAMP_OFFSET + TIME_RABIN_PUBKEY_HASH_LEN;
+    static int RABIN_PUBKEY_HASH_ARRAY_HASH_OFFSET = TIME_RABIN_PUBKEY_HASH_OFFSET + RABIN_PUBKEY_HASH_ARRAY_HASH_LEN;
+
+    static int DATA_LEN = RABIN_PUBKEY_HASH_ARRAY_HASH_OFFSET;
+
+    static function getSensibleID(bytes script, int slen) : bytes {
+        return script[slen - SENSIBLE_ID_OFFSET : slen - SENSIBLE_ID_OFFSET + SENSIBLE_ID_LEN];
+    }
+
+    static function getSenderAddress(bytes script, int slen) : bytes {
+        return script[slen - SENDER_ADDRESS_OFFSET : slen - SENDER_ADDRESS_OFFSET + SENDDER_ADDRESS_LEN];
+    }
+
+    static function getStartBsvPrice(bytes script, int slen) : bytes {
+        return script[slen - START_BSV_PRICE_OFFESET : slen - START_BSV_PRICE_OFFESET + START_BSV_PRICE_LEN];
+    }
+
+    static function getBidderAddress(bytes script, int slen) : bytes {
+        return script[slen - BIDDER_ADDRESS_OFFSET : slen - BIDDER_ADDRESS_OFFSET + BIDDER_ADDRESS_LEN];
+    }
+
+    static function getBidBsvPrice(bytes script, int slen) : bytes {
+        return script[slen - BID_BSV_PRICE_OFFSET : slen - BID_BSV_PRICE_OFFSET + BID_BSV_PRICE_LEN];
+    }
+
+    static function getNftCodehash(bytes script, int slen) : bytes {
+        return script[slen - NFT_CODE_HASH_OFFSET : slen - NFT_CODE_HASH_OFFSET + NFT_CODE_HASH_LEN];
+    }
+
+    static function getNftID(bytes script, int slen) : bytes {
+        return script[slen - NFT_ID_OFFSET : slen - NFT_ID_OFFSET + NFT_ID_LEN];
+    }
+
+    static function getEndTimestamp(bytes script, int slen) : bytes {
+        return script[slen - END_TIMESTAMP_OFFSET : slen - END_TIMESTAMP_OFFSET + END_TIMESTAMP_LEN];
+    }
+
+    static function getTimeRabinPubkeyHash(bytes script, int slen) : bytes {
+        return script[slen - TIME_RABIN_PUBKEY_HASH_OFFSET : slen - TIME_RABIN_PUBKEY_HASH_OFFSET + TIME_RABIN_PUBKEY_HASH_LEN];
+    }
+
+    static function getRabinPubkeyHash(bytes script, int slen) : bytes {
+        return script[slen - RABIN_PUBKEY_HASH_ARRAY_HASH_OFFSET : slen - RABIN_PUBKEY_HASH_ARRAY_HASH_OFFSET + RABIN_PUBKEY_HASH_ARRAY_HASH_LEN];
+    }
+
+    static function checkDataLen(bytes script, int slen) : bool {
+        return unpack(script[slen - DATA_LEN - 1 : slen - DATA_LEN] + b'00') == DATA_LEN;
+    }
+
+    static function checkOpReturn(bytes script, int slen) : bool {
+        return unpack(script[slen - DATA_LEN - 3 : slen - DATA_LEN - 2] + b'00') == 0x6a;
+    }
+
+    static function getNewBidScript(bytes script, int slen, int bidBsvPrice, bytes bidderAddress, bytes sensibleId) : bytes {
+        return script[: slen - BID_BSV_PRICE_OFFSET] + Util.toLEUnsigned(bidBsvPrice, 8) + bidderAddress + sensibleId+script[slen - ProtoHeader.HEADER_LEN:];
+    }
+
+    static function checkProtoHeader(bytes script, int slen) : bool {
+        return script[slen - ProtoHeader.HEADER_LEN :] == b'0100000004000100' + ProtoHeader.PROTO_FLAG;
+    }
+
+    static function getContractCode(bytes script, int slen) : bytes {
+        // contract code include op_return
+        return script[: slen - DATA_LEN - 2];
+    }
+
+    static function getContractCodeHash(bytes script, int slen) : bytes {
+        return hash160(getContractCode(script, slen));
+    }
+}

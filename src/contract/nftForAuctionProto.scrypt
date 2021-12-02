@@ -1,0 +1,47 @@
+import "util.scrypt";
+import "protoheader.scrypt";
+
+library NftForAuctionProto {
+
+    // <type specific data> + <proto header>
+    //<nft auction type specific data> = 
+    //  <nftCodeHash>(20byte) +
+    //  <nftID>(20byte) + 
+    //  <auctionContractHash> (20byte)
+
+    // nftAuction PROTO_TYPE = 0x00010005
+    
+    static const int NFT_CODE_HASH_LEN = 20;
+    static const int NFT_ID_LEN = 20;
+    static const int AUCTION_CONTRACT_HASH_LEN = 20;
+    
+    static int NFT_CODE_HASH_OFFSET = ProtoHeader.HEADER_LEN + NFT_CODE_HASH_LEN;
+    static int NFT_ID_OFFSET = NFT_CODE_HASH_OFFSET + NFT_ID_LEN;
+    static int AUCTION_CONTRACT_HASH_OFFSET = NFT_ID_OFFSET + AUCTION_CONTRACT_HASH_LEN;
+
+    static int DATA_LEN = AUCTION_CONTRACT_HASH_OFFSET;
+
+    static function getNftCodehash(bytes script, int slen): bytes {
+        return script[slen - NFT_CODE_HASH_OFFSET: slen - NFT_CODE_HASH_OFFSET + NFT_CODE_HASH_LEN];
+    }
+
+    static function getNftID(bytes script, int slen): bytes {
+        return script[slen - NFT_ID_OFFSET: slen - NFT_ID_OFFSET + NFT_ID_LEN];
+    }
+
+    static function getAuctionContractHash(bytes script, int slen): bytes {
+        return script[slen - AUCTION_CONTRACT_HASH_OFFSET: slen - AUCTION_CONTRACT_HASH_OFFSET + AUCTION_CONTRACT_HASH_LEN];
+    }
+
+    static function checkDataLen(bytes script, int slen): bool {
+        return unpack(script[slen - DATA_LEN - 1: slen - DATA_LEN] + b'00') == DATA_LEN;
+    }
+
+    static function checkOpReturn(bytes script, int slen): bool {
+        return unpack(script[slen - DATA_LEN - 3: slen - DATA_LEN - 2] + b'00') == 0x6a;
+    }
+
+    static function checkProtoHeader(bytes script, int slen) : bool {
+        return script[slen - ProtoHeader.HEADER_LEN:] == b'0100000005000100' + ProtoHeader.PROTO_FLAG;
+    }
+}
