@@ -11,6 +11,7 @@ export type FormatedDataPart = {
   nftCodeHash?: string;
   startBsvPrice?: number;
   senderAddress?: string;
+  bidTimestamp?: number;
   bidBsvPrice?: number;
   bidderAddress?: string;
 
@@ -31,11 +32,12 @@ export enum GENESIS_FLAG {
 
 // <type specific data> + <proto header>
 // <proto header> = <type(4 bytes)> + <'sensible'(8 bytes)>
-//<nft type specific data> = <timeRabinPubkeyHash>(20byte) +<endTimeStamp>(8byte) +  <nftID>(20byte) + <nftCodeHash>(20byte) +  <startBsvPrice(8byte)> + <sendderAddress(20byte)> + <bidBsvPrice>(8byte) + <bidderAddress(20byte)> + <sensibleID(36 bytes)>
+//<nft type specific data> = <rabinPubkeyHashArrayHash>(20bytes)  + <timeRabinPubkeyHash>(20byte) +<endTimeStamp>(8byte) +  <nftID>(20byte) + <nftCodeHash>(20byte) +  <startBsvPrice(8byte)> + <sendderAddress(20byte)> + <bidTimestamp>(8byte) + <bidBsvPrice>(8byte) + <bidderAddress(20byte)> + <sensibleID(36 bytes)>
 
 const SENSIBLE_ID_LEN = 36;
 const BIDDER_ADDRESS_LEN = 20;
 const BID_BSV_PRICE_LEN = 8;
+const BID_TIMESTAMP_LEN = 8;
 const SENDDER_ADDRESS_LEN = 20;
 const START_BSV_PRICE_LEN = 8;
 const NFT_CODE_HASH_LEN = 20;
@@ -47,7 +49,8 @@ const RABIN_PUBKEY_HASH_ARRAY_HASH_LEN = 20;
 const SENSIBLE_ID_OFFSET = SENSIBLE_ID_LEN + Proto.getHeaderLen();
 const BIDDER_ADDRESS_OFFSET = SENSIBLE_ID_OFFSET + BIDDER_ADDRESS_LEN;
 const BID_BSV_PRICE_OFFSET = BIDDER_ADDRESS_OFFSET + BID_BSV_PRICE_LEN;
-const SENDER_ADDRESS_OFFSET = BID_BSV_PRICE_OFFSET + SENDDER_ADDRESS_LEN;
+const BID_TIMESTAMP_OFFSET = BID_BSV_PRICE_OFFSET + BID_TIMESTAMP_LEN;
+const SENDER_ADDRESS_OFFSET = BID_TIMESTAMP_OFFSET + SENDDER_ADDRESS_LEN;
 const START_BSV_PRICE_OFFESET = SENDER_ADDRESS_OFFSET + START_BSV_PRICE_LEN;
 const NFT_CODE_HASH_OFFSET = START_BSV_PRICE_OFFESET + NFT_CODE_HASH_LEN;
 const NFT_ID_OFFSET = NFT_CODE_HASH_OFFSET + NFT_ID_LEN;
@@ -142,6 +145,17 @@ export function getBidderAddress(script: Buffer) {
     .toString("hex");
 }
 
+export function getBidTimestamp(script: Buffer) {
+  if (script.length < BID_TIMESTAMP_OFFSET) return 0;
+  return BN.fromBuffer(
+    script.slice(
+      script.length - BID_TIMESTAMP_OFFSET,
+      script.length - BID_TIMESTAMP_OFFSET + BID_TIMESTAMP_LEN
+    ),
+    { endian: "little" }
+  ).toNumber();
+}
+
 export function getSenderAddress(script: Buffer) {
   if (script.length < SENDER_ADDRESS_OFFSET) return "";
   return script
@@ -173,6 +187,7 @@ export function newDataPart({
   nftCodeHash,
   startBsvPrice,
   senderAddress,
+  bidTimestamp,
   bidBsvPrice,
   bidderAddress,
   sensibleID,
@@ -211,6 +226,13 @@ export function newDataPart({
   const senderAddressBuf = Buffer.alloc(SENDDER_ADDRESS_LEN, 0);
   if (senderAddress) {
     senderAddressBuf.write(senderAddress, "hex");
+  }
+
+  let bidTimestampBuf = Buffer.alloc(BID_TIMESTAMP_LEN, 0);
+  if (bidTimestamp) {
+    bidTimestampBuf = BN.fromNumber(bidTimestamp)
+      .toBuffer({ endian: "little", size: BID_TIMESTAMP_LEN })
+      .slice(0, BID_TIMESTAMP_LEN);
   }
 
   let bidBsvPriceBuf = Buffer.alloc(BID_BSV_PRICE_LEN, 0);
@@ -259,6 +281,7 @@ export function newDataPart({
     nftCodeHashBuf,
     startBsvPriceBuf,
     senderAddressBuf,
+    bidTimestampBuf,
     bidBsvPriceBuf,
     bidderAddressBuf,
 
@@ -277,6 +300,7 @@ export function parseDataPart(scriptBuf: Buffer): FormatedDataPart {
   let nftCodeHash = getCodeHash(scriptBuf);
   let startBsvPrice = getStartBsvPrice(scriptBuf);
   let senderAddress = getSenderAddress(scriptBuf);
+  let bidTimestamp = getBidTimestamp(scriptBuf);
   let bidBsvPrice = getBidBsvPrice(scriptBuf);
   let bidderAddress = getBidderAddress(scriptBuf);
   let sensibleID = getSensibleID(scriptBuf);
@@ -290,6 +314,7 @@ export function parseDataPart(scriptBuf: Buffer): FormatedDataPart {
     nftCodeHash,
     startBsvPrice,
     senderAddress,
+    bidTimestamp,
     bidBsvPrice,
     bidderAddress,
     sensibleID,

@@ -20,15 +20,7 @@ export class NftAuction extends ContractAdapter {
     Signature.SIGHASH_ANYONECANPAY |
     Signature.SIGHASH_FORKID;
 
-  constuctParams: {
-    senderAddress: Ripemd160;
-    startBsvPrice: number;
-    timeRabinPubKeyHash: Bytes;
-    nftCodeHash: Bytes;
-    nftID: Bytes;
-    endTimeStamp: number;
-    rabinPubKeyHashArrayHash: Bytes;
-  };
+  constuctParams: {};
 
   static getClass() {
     const desc = require("../contract-desc/nftAuction_desc.json");
@@ -36,26 +28,9 @@ export class NftAuction extends ContractAdapter {
     return NftSellContractClass;
   }
 
-  constructor(constuctParams: {
-    senderAddress: Ripemd160;
-    startBsvPrice: number;
-    timeRabinPubKeyHash: Bytes;
-    nftCodeHash: Bytes;
-    nftID: Bytes;
-    endTimeStamp: number;
-    rabinPubKeyHashArrayHash: Bytes;
-  }) {
+  constructor(constuctParams: {}) {
     let NftAuctionContractClass = NftAuction.getClass();
-    let contract = new NftAuctionContractClass(
-      constuctParams.senderAddress,
-      constuctParams.startBsvPrice,
-      constuctParams.timeRabinPubKeyHash,
-
-      constuctParams.nftCodeHash,
-      constuctParams.nftID,
-      constuctParams.endTimeStamp,
-      constuctParams.rabinPubKeyHashArrayHash
-    );
+    let contract = new NftAuctionContractClass();
     super(contract);
     this.constuctParams = constuctParams;
   }
@@ -92,6 +67,7 @@ export class NftAuction extends ContractAdapter {
     txPreimage,
     nftScript,
     nftOutputSatoshis,
+    preBidTimestamp,
     preBsvBidPrice,
     preBidder,
     changeAddress,
@@ -113,6 +89,7 @@ export class NftAuction extends ContractAdapter {
     txPreimage: SigHashPreimage;
     nftScript?: Bytes;
     nftOutputSatoshis?: number;
+    preBidTimestamp?: number;
     preBsvBidPrice?: number;
     preBidder?: Ripemd160;
     changeAddress?: Ripemd160;
@@ -131,14 +108,11 @@ export class NftAuction extends ContractAdapter {
     senderPubKey?: PubKey;
     senderSig?: Sig;
   }) {
-    // if (!senderPubKey) {
-    //   senderPubKey = new PubKey("00");
-    //   senderSig = new Sig("00");
-    // }
     return this._contract.unlock(
       txPreimage,
       nftScript,
       nftOutputSatoshis,
+      preBidTimestamp,
       preBsvBidPrice,
       preBidder,
       changeAddress,
@@ -161,8 +135,10 @@ export class NftAuction extends ContractAdapter {
 
   public bid({
     txPreimage,
+    bidTimestamp,
     bsvBidPrice,
     bidder,
+    preBidTimestamp,
     preBsvBidPrice,
     preBidder,
     changeAddress,
@@ -180,8 +156,10 @@ export class NftAuction extends ContractAdapter {
     rabinPubKeyHashArray,
   }: {
     txPreimage: SigHashPreimage;
+    bidTimestamp?: number;
     bsvBidPrice?: number;
     bidder?: Ripemd160;
+    preBidTimestamp?: number;
     preBsvBidPrice?: number;
     preBidder?: Ripemd160;
     changeAddress?: Ripemd160;
@@ -200,8 +178,10 @@ export class NftAuction extends ContractAdapter {
   }) {
     return this._contract.bid(
       txPreimage,
+      bidTimestamp,
       bsvBidPrice,
       bidder,
+      preBidTimestamp,
       preBsvBidPrice,
       preBidder,
       changeAddress,
@@ -228,23 +208,7 @@ export class NftAuctionFactory {
     return this.lockingScriptSize;
   }
 
-  public static createContract(
-    senderAddress: Ripemd160,
-    startBsvPrice: number,
-    timeRabinPubKeyHash: Bytes,
-    nftCodeHash: Bytes,
-    nftID: Bytes,
-    endTimeStamp: number,
-    rabinPubKeyHashArrayHash: Bytes
-  ): NftAuction {
-    return new NftAuction({
-      senderAddress,
-      startBsvPrice,
-      timeRabinPubKeyHash,
-      nftCodeHash,
-      nftID,
-      endTimeStamp,
-      rabinPubKeyHashArrayHash,
-    });
+  public static createContract(): NftAuction {
+    return new NftAuction({});
   }
 }

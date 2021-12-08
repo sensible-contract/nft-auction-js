@@ -11,7 +11,6 @@ import {
   PLACE_HOLDER_PUBKEY,
   PLACE_HOLDER_SIG,
   Prevouts,
-  RABIN_SIG_LEN,
   Utils,
 } from "@sensible-contract/sdk-core";
 import {
@@ -32,19 +31,11 @@ import {
 import * as nftAuctionProto from "./contract-proto/nftAuction.proto";
 const Signature = bsv.crypto.Signature;
 export const sighashType = Signature.SIGHASH_ALL | Signature.SIGHASH_FORKID;
-const PLACE_HOLDER_UNSIGN_TXID =
-  "4444444444444444444444444444444888888888888888888888888888888888";
-const PLACE_HOLDER_UNSIGN_TXID_REVERSE =
-  "8888888888888888888888888888888884444444444444444444444444444444";
-const PLACE_HOLDER_UNSIGN_PREVOUTS =
-  "4444444444444444444444444444444444444444444444444444444444444444";
-const PLACE_HOLDER_UNSIGN_CHECKTX =
-  "504c4143455f484f4c4445525f554e5349474e5f434845434b5458";
 
 let defaultOracleConfig = {
-  apiPrefix: "https://woc.satoplay.com",
+  apiPrefix: "https://witnessonchain.com/v1",
   pubKey:
-    "2c8c0117aa5edba9a4539e783b6a1bdbc1ad88ad5b57f3d9c5cba55001c45e1fedb877ebc7d49d1cfa8aa938ccb303c3a37732eb0296fee4a6642b0ff1976817b603404f64c41ec098f8cd908caf64b4a3aada220ff61e252ef6d775079b69451367eda8fdb37bc55c8bfd69610e1f31b9d421ff44e3a0cfa7b11f334374827256a0b91ce80c45ffb798798e7bd6b110134e1a3c3fa89855a19829aab3922f55da92000495737e99e0094e6c4dbcc4e8d8de5459355c21ff055d039a202076e4ca263b745a885ef292eec0b5a5255e6ecc45534897d9572c3ebe97d36626c7b1e775159e00b17d03bc6d127260e13a252afd89bab72e8daf893075f18c1840cb394f18a9817913a9462c6ffc8951bee50a05f38da4c9090a4d6868cb8c955e5efb4f3be4e7cf0be1c399d78a6f6dd26a0af8492dca67843c6da9915bae571aa9f4696418ab1520dd50dd05f5c0c7a51d2843bd4d9b6b3b79910e98f3d98099fd86d71b2fac290e32bdacb31943a8384a7668c32a66be127b74390b4b0dec6455",
+    "ad7e1e8d6d2960129c9fe6b636ef4041037f599c807ecd5adf491ce45835344b18fd4e7c92fd63bb822b221344fe21c0522ab81e9f8e848206875370cae4d908ac2656192ad6910ebb685036573b442ec1cff490c1638b7f5a181ae6d6bc9a04a305720559c893611f836321c2beb69dbf3694b9305a988c77e0a451c38674e84ce95a912833d2cf4ca9d48cc76d8250d0130740145ca19e20b1513bb93ca7665c1f110493d1b5aa344702109df5feca790f988eaa02f92e019721ae0e8bfaa9fdcd3401ffb4433fbe6e575ed9f704a6dc60872f0d23b2f43bfe5e64ce0fbc71283e6dedee79e20ad878917fa4a8257f879527c58f89a8670be591fc2815f7e7a8d74a9830788404f66170058dd7a08f47c4954324088dbed2f330015ccc36d29efd392a3cd5bf9835871f6b4b203c228af16f5b461676ce8e51003afd3137978117cf41147f2bb615a7c338bebdca5f81a43fe9b51480ae52ce04cf2f2b1714599fe09ae8401e0e155b4caa89fb37b00c604517fc36961f84901a73a343bb40",
 };
 
 type OracleConfig = {
@@ -61,7 +52,7 @@ export class WitnessOracle {
     this.api = new WitnessOnChainApi(oracleConfig.apiPrefix);
     this.rabinPubKey = BN.fromString(oracleConfig.pubKey, 16);
     this.rabinPubKeyHash = bsv.crypto.Hash.sha256ripemd160(
-      Utils.toBufferLE(this.rabinPubKey.toString(16), RABIN_SIG_LEN)
+      Buffer.from(oracleConfig.pubKey, "hex")
     );
   }
 }
@@ -111,16 +102,7 @@ export async function createNftAuctionContractTx(
     );
   }
 
-  let nftID = toHex(nftProto.getNftID(nftInput.lockingScript.toBuffer()));
-  let nftAuctionContract = NftAuctionFactory.createContract(
-    new Ripemd160(new bsv.Address(senderAddress).hashBuffer.toString("hex")),
-    startBsvPrice,
-    new Bytes(witnessOracle.rabinPubKeyHash.toString("hex")),
-    new Bytes(nftInput.codehash),
-    new Bytes(nftID),
-    endTimeStamp,
-    new Bytes(toHex(nftSigner.rabinPubKeyHashArrayHash))
-  );
+  let nftAuctionContract = NftAuctionFactory.createContract();
   nftAuctionContract.setFormatedDataPart({
     rabinPubKeyHashArrayHash:
       nftSigner.rabinPubKeyHashArrayHash.toString("hex"),
@@ -130,6 +112,7 @@ export async function createNftAuctionContractTx(
     nftCodeHash: nftInput.codehash,
     startBsvPrice,
     senderAddress: new bsv.Address(senderAddress).hashBuffer.toString("hex"),
+    bidTimestamp: 0,
     bidBsvPrice: 0,
     bidderAddress: getZeroAddress(provider.network).hashBuffer.toString("hex"),
     sensibleID: {
@@ -202,7 +185,6 @@ export async function createNftForAuctionContractTx(
       "Bsv utxos should be no more than 3 in this operation, please merge it first "
     );
   }
-  console.log(auctionContractHash, "auction");
   let nftForAuctionContract = NftForAuctionFactory.createContract(
     new Bytes(auctionContractHash)
   );
@@ -268,6 +250,7 @@ export type NftAuctionInput = {
 
   // senderAddress: bsv.Address;
 
+  preBidTimestamp?: number;
   preBsvBidPrice?: number;
   preBidder?: bsv.Address;
 
@@ -328,6 +311,7 @@ export async function getNftAuctionInput(
   if (!nftAuctionProto.getBidderAddress(preScriptBuf)) {
     nftAuctionInput.preBidder = getZeroAddress(provider.network);
     nftAuctionInput.preBsvBidPrice = 0;
+    nftAuctionInput.preBidTimestamp = 0;
   } else {
     nftAuctionInput.preBidder = bsv.Address.fromPublicKeyHash(
       Buffer.from(nftAuctionProto.getBidderAddress(preScriptBuf), "hex"),
@@ -335,6 +319,8 @@ export async function getNftAuctionInput(
     );
     nftAuctionInput.preBsvBidPrice =
       nftAuctionProto.getBidBsvPrice(preScriptBuf);
+    nftAuctionInput.preBidTimestamp =
+      nftAuctionProto.getBidTimestamp(preScriptBuf);
   }
 
   nftAuctionInput.senderAddress = bsv.Address.fromPublicKeyHash(
@@ -416,6 +402,7 @@ export async function createBidTx({
 
   let nftAuctionScriptBuf = nftAuctionInput.lockingScript.toBuffer();
   let dataPartObj = nftAuctionProto.parseDataPart(nftAuctionScriptBuf);
+  dataPartObj.bidTimestamp = oracleData.timestamp * 1000;
   dataPartObj.bidBsvPrice = bsvBidPrice;
   dataPartObj.bidderAddress = new bsv.Address(
     bidderAddress
@@ -453,15 +440,7 @@ export async function createBidTx({
     txComposer.clearChangeOutput();
     const changeOutputIndex = txComposer.appendChangeOutput(changeAddress);
 
-    const nftAuctionContract = NftAuctionFactory.createContract(
-      new Ripemd160(nftAuctionInput.senderAddress.hashBuffer.toString("hex")),
-      nftAuctionInput.startBsvPrice,
-      new Bytes(witnessOracle.rabinPubKeyHash.toString("hex")),
-      new Bytes(nftAuctionInput.nftCodeHash),
-      new Bytes(nftAuctionInput.nftID),
-      nftAuctionInput.endTimeStamp,
-      new Bytes(toHex(nftSigner.rabinPubKeyHashArrayHash))
-    );
+    const nftAuctionContract = NftAuctionFactory.createContract();
     let dataPartObj = nftAuctionProto.parseDataPart(
       nftAuctionInput.lockingScript.toBuffer()
     );
@@ -475,10 +454,12 @@ export async function createBidTx({
             Signature.SIGHASH_FORKID
         )
       ),
+      bidTimestamp: oracleData.timestamp * 1000,
       bsvBidPrice: bsvBidPrice,
       bidder: new Ripemd160(
         new bsv.Address(bidderAddress).hashBuffer.toString("hex")
       ),
+      preBidTimestamp: nftAuctionInput.preBidTimestamp,
       preBsvBidPrice: nftAuctionInput.preBsvBidPrice,
       preBidder: new Ripemd160(
         nftAuctionInput.preBidder.hashBuffer.toString("hex")
@@ -494,18 +475,8 @@ export async function createBidTx({
 
       timeRabinMsg: new Bytes(oracleData.digest),
       timeRabinPadding: new Bytes(oracleData.signatures.rabin.padding),
-      timeRabinSig: new Bytes(
-        Utils.toBufferLE(
-          oracleData.signatures.rabin.signature,
-          RABIN_SIG_LEN
-        ).toString("hex")
-      ),
-      timeRabinPubKey: new Bytes(
-        Utils.toBufferLE(
-          witnessOracle.rabinPubKey.toString(16),
-          RABIN_SIG_LEN
-        ).toString("hex")
-      ),
+      timeRabinSig: new Bytes(oracleData.signatures.rabin.signature),
+      timeRabinPubKey: new Bytes(witnessOracle.rabinPubKey.toString("hex")),
 
       rabinMsg: rabinDatas[0].rabinMsg,
       rabinPaddingArray: rabinDatas[0].rabinPaddingArray,
@@ -695,15 +666,7 @@ export async function createWithdrawTx({
     txComposer.clearChangeOutput();
     const changeOutputIndex = txComposer.appendChangeOutput(changeAddress);
 
-    const nftAuctionContract = NftAuctionFactory.createContract(
-      new Ripemd160(nftAuctionInput.senderAddress.hashBuffer.toString("hex")),
-      nftAuctionInput.startBsvPrice,
-      new Bytes(witnessOracle.rabinPubKeyHash.toString("hex")),
-      new Bytes(nftAuctionInput.nftCodeHash),
-      new Bytes(nftAuctionInput.nftID),
-      nftAuctionInput.endTimeStamp,
-      new Bytes(toHex(nftSigner.rabinPubKeyHashArrayHash))
-    );
+    const nftAuctionContract = NftAuctionFactory.createContract();
     nftAuctionContract.setFormatedDataPart(
       nftAuctionProto.parseDataPart(nftAuctionInput.lockingScript.toBuffer())
     );
@@ -713,6 +676,7 @@ export async function createWithdrawTx({
       ),
       nftScript: new Bytes(nftInput.lockingScript.toBuffer().toString("hex")),
       nftOutputSatoshis: nftInput.satoshis,
+      preBidTimestamp: nftAuctionInput.preBidTimestamp,
       preBsvBidPrice: nftAuctionInput.preBsvBidPrice,
       preBidder: new Ripemd160(
         nftAuctionInput.preBidder.hashBuffer.toString("hex")
@@ -728,18 +692,8 @@ export async function createWithdrawTx({
 
       timeRabinMsg: new Bytes(oracleData.digest),
       timeRabinPadding: new Bytes(oracleData.signatures.rabin.padding),
-      timeRabinSig: new Bytes(
-        Utils.toBufferLE(
-          oracleData.signatures.rabin.signature,
-          RABIN_SIG_LEN
-        ).toString("hex")
-      ),
-      timeRabinPubKey: new Bytes(
-        Utils.toBufferLE(
-          witnessOracle.rabinPubKey.toString(16),
-          RABIN_SIG_LEN
-        ).toString("hex")
-      ),
+      timeRabinSig: new Bytes(oracleData.signatures.rabin.signature),
+      timeRabinPubKey: new Bytes(witnessOracle.rabinPubKey.toString("hex")),
 
       rabinMsg: nftAuctionRabinData.rabinDatas[0].rabinMsg,
       rabinPaddingArray: nftAuctionRabinData.rabinDatas[0].rabinPaddingArray,
@@ -843,18 +797,8 @@ export async function createWithdrawTx({
 
       timeRabinMsg: new Bytes(oracleData.digest),
       timeRabinPadding: new Bytes(oracleData.signatures.rabin.padding),
-      timeRabinSig: new Bytes(
-        Utils.toBufferLE(
-          oracleData.signatures.rabin.signature,
-          RABIN_SIG_LEN
-        ).toString("hex")
-      ),
-      timeRabinPubKey: new Bytes(
-        Utils.toBufferLE(
-          witnessOracle.rabinPubKey.toString(16),
-          RABIN_SIG_LEN
-        ).toString("hex")
-      ),
+      timeRabinSig: new Bytes(oracleData.signatures.rabin.signature),
+      timeRabinPubKey: new Bytes(witnessOracle.rabinPubKey.toString("hex")),
       senderPubKey: new PubKey(hasBidder ? "00" : PLACE_HOLDER_PUBKEY),
       senderSig: new Sig(hasBidder ? "00" : PLACE_HOLDER_SIG),
     });

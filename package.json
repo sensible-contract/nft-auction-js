@@ -23,7 +23,7 @@
   "author": "sensiblecontract.org",
   "license": "MIT",
   "dependencies": {
-    "@sensible-contract/nft-js": "^0.1.0",
+    "@sensible-contract/nft-js": "^0.1.1-beta.1",
     "@sensible-contract/witnessonchain-api": "^0.1.0"
   },
   "devDependencies": {
