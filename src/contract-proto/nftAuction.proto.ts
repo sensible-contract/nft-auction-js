@@ -9,6 +9,8 @@ export type FormatedDataPart = {
   endTimestamp?: number;
   nftID?: string;
   nftCodeHash?: string;
+  feeAmount?: number;
+  feeAddress?: string;
   startBsvPrice?: number;
   senderAddress?: string;
   bidTimestamp?: number;
@@ -31,8 +33,8 @@ export enum GENESIS_FLAG {
 }
 
 // <type specific data> + <proto header>
-// <proto header> = <type(4 bytes)> + <'sensible'(8 bytes)>
-//<nft type specific data> = <rabinPubkeyHashArrayHash>(20bytes)  + <timeRabinPubkeyHash>(20byte) +<endTimeStamp>(8byte) +  <nftID>(20byte) + <nftCodeHash>(20byte) +  <startBsvPrice(8byte)> + <sendderAddress(20byte)> + <bidTimestamp>(8byte) + <bidBsvPrice>(8byte) + <bidderAddress(20byte)> + <sensibleID(36 bytes)>
+// <proto header> = <version(4 bytes)> +  <type(4 bytes)> + <'sensible'(8 bytes)>
+//<nft type specific data> = <rabinPubkeyHashArrayHash>(20bytes)  + <timeRabinPubkeyHash>(20byte) +<endTimeStamp>(8byte) +  <nftID>(20byte) + <nftCodeHash>(20byte) +  <feeAmount(8byte)> + <feeAddress(20byte)> + <startBsvPrice(8byte)> + <sendderAddress(20byte)> + <bidTimestamp>(8byte) + <bidBsvPrice>(8byte) + <bidderAddress(20byte)> + <sensibleID(36 bytes)>
 
 const SENSIBLE_ID_LEN = 36;
 const BIDDER_ADDRESS_LEN = 20;
@@ -40,6 +42,8 @@ const BID_BSV_PRICE_LEN = 8;
 const BID_TIMESTAMP_LEN = 8;
 const SENDDER_ADDRESS_LEN = 20;
 const START_BSV_PRICE_LEN = 8;
+const FEE_ADDRESS_LEN = 20;
+const FEE_AMOUNT_LEN = 8;
 const NFT_CODE_HASH_LEN = 20;
 const NFT_ID_LEN = 20;
 const END_TIMESTAMP_LEN = 8;
@@ -52,7 +56,9 @@ const BID_BSV_PRICE_OFFSET = BIDDER_ADDRESS_OFFSET + BID_BSV_PRICE_LEN;
 const BID_TIMESTAMP_OFFSET = BID_BSV_PRICE_OFFSET + BID_TIMESTAMP_LEN;
 const SENDER_ADDRESS_OFFSET = BID_TIMESTAMP_OFFSET + SENDDER_ADDRESS_LEN;
 const START_BSV_PRICE_OFFESET = SENDER_ADDRESS_OFFSET + START_BSV_PRICE_LEN;
-const NFT_CODE_HASH_OFFSET = START_BSV_PRICE_OFFESET + NFT_CODE_HASH_LEN;
+const FEE_ADDRESS_OFFSET = START_BSV_PRICE_OFFESET + FEE_ADDRESS_LEN;
+const FEE_AMOUNT_OFFSET = FEE_ADDRESS_OFFSET + FEE_AMOUNT_LEN;
+const NFT_CODE_HASH_OFFSET = FEE_AMOUNT_OFFSET + NFT_CODE_HASH_LEN;
 const NFT_ID_OFFSET = NFT_CODE_HASH_OFFSET + NFT_ID_LEN;
 const END_TIMESTAMP_OFFSET = NFT_ID_OFFSET + END_TIMESTAMP_LEN;
 const TIME_RABIN_PUBKEY_HASH_OFFSET =
@@ -109,6 +115,27 @@ export function getCodeHash(script: Buffer) {
     .slice(
       script.length - NFT_CODE_HASH_OFFSET,
       script.length - NFT_CODE_HASH_OFFSET + NFT_CODE_HASH_LEN
+    )
+    .toString("hex");
+}
+
+export function getFeeAmount(script: Buffer) {
+  if (script.length < FEE_AMOUNT_OFFSET) return 0;
+  return BN.fromBuffer(
+    script.slice(
+      script.length - FEE_AMOUNT_OFFSET,
+      script.length - FEE_AMOUNT_OFFSET + FEE_AMOUNT_LEN
+    ),
+    { endian: "little" }
+  ).toNumber();
+}
+
+export function getFeeAddress(script: Buffer) {
+  if (script.length < FEE_ADDRESS_OFFSET) return "";
+  return script
+    .slice(
+      script.length - FEE_ADDRESS_OFFSET,
+      script.length - FEE_ADDRESS_OFFSET + FEE_ADDRESS_LEN
     )
     .toString("hex");
 }
@@ -185,6 +212,8 @@ export function newDataPart({
   endTimestamp,
   nftID,
   nftCodeHash,
+  feeAmount,
+  feeAddress,
   startBsvPrice,
   senderAddress,
   bidTimestamp,
@@ -214,6 +243,18 @@ export function newDataPart({
   const nftCodeHashBuf = Buffer.alloc(NFT_CODE_HASH_LEN, 0);
   if (nftCodeHash) {
     nftCodeHashBuf.write(nftCodeHash, "hex");
+  }
+
+  let feeAmountBuf = Buffer.alloc(FEE_AMOUNT_LEN, 0);
+  if (feeAmount) {
+    feeAmountBuf = BN.fromNumber(feeAmount)
+      .toBuffer({ endian: "little", size: FEE_AMOUNT_LEN })
+      .slice(0, FEE_AMOUNT_LEN);
+  }
+
+  const feeAddressBuf = Buffer.alloc(FEE_ADDRESS_LEN, 0);
+  if (feeAddress) {
+    feeAddressBuf.write(feeAddress, "hex");
   }
 
   let startBsvPriceBuf = Buffer.alloc(START_BSV_PRICE_LEN, 0);
@@ -279,6 +320,8 @@ export function newDataPart({
     endTimestampBuf,
     nftIDBuf,
     nftCodeHashBuf,
+    feeAmountBuf,
+    feeAddressBuf,
     startBsvPriceBuf,
     senderAddressBuf,
     bidTimestampBuf,
@@ -298,6 +341,8 @@ export function parseDataPart(scriptBuf: Buffer): FormatedDataPart {
   let endTimestamp = getEndTimestamp(scriptBuf);
   let nftID = getNftID(scriptBuf);
   let nftCodeHash = getCodeHash(scriptBuf);
+  let feeAmount = getFeeAmount(scriptBuf);
+  let feeAddress = getFeeAddress(scriptBuf);
   let startBsvPrice = getStartBsvPrice(scriptBuf);
   let senderAddress = getSenderAddress(scriptBuf);
   let bidTimestamp = getBidTimestamp(scriptBuf);
@@ -312,6 +357,8 @@ export function parseDataPart(scriptBuf: Buffer): FormatedDataPart {
     endTimestamp,
     nftID,
     nftCodeHash,
+    feeAmount,
+    feeAddress,
     startBsvPrice,
     senderAddress,
     bidTimestamp,

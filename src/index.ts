@@ -1,16 +1,20 @@
+import { Provider } from "@sensible-contract/abstract-provider";
 import * as bsv from "@sensible-contract/bsv";
-import { BN } from "@sensible-contract/bsv";
 import { NftInput, NftSigner } from "@sensible-contract/nft-js";
 import { NftFactory } from "@sensible-contract/nft-js/lib/contract-factory/nft";
-import { NftUnlockContractCheck } from "@sensible-contract/nft-js/lib/contract-factory/nftUnlockContractCheck";
+import {
+  NftUnlockContractCheck,
+  NftUnlockContractCheckFactory,
+  NFT_UNLOCK_CONTRACT_TYPE,
+} from "@sensible-contract/nft-js/lib/contract-factory/nftUnlockContractCheck";
 import * as nftProto from "@sensible-contract/nft-js/lib/contract-proto/nft.proto";
-import { SensiblequeryProvider } from "@sensible-contract/providers";
 import {
   getRabinDatas,
   getZeroAddress,
   PLACE_HOLDER_PUBKEY,
   PLACE_HOLDER_SIG,
   Prevouts,
+  SizeTransaction,
   Utils,
 } from "@sensible-contract/sdk-core";
 import {
@@ -43,16 +47,23 @@ type OracleConfig = {
   pubKey: string;
 };
 
+interface NftAuctionProvider extends Provider {
+  getNftAuctionUtxo(
+    codehash: string,
+    nftid: string
+  ): Promise<{ txId: string; outputIndex: number }>;
+}
+
 export class WitnessOracle {
   api: WitnessOnChainApi;
-  rabinPubKey: BN;
-  rabinPubKeyHash: Buffer;
+  rabinPubKey: string;
+  rabinPubKeyHash: string;
 
   constructor(oracleConfig: OracleConfig = defaultOracleConfig) {
     this.api = new WitnessOnChainApi(oracleConfig.apiPrefix);
-    this.rabinPubKey = BN.fromString(oracleConfig.pubKey, 16);
-    this.rabinPubKeyHash = bsv.crypto.Hash.sha256ripemd160(
-      Buffer.from(oracleConfig.pubKey, "hex")
+    this.rabinPubKey = oracleConfig.pubKey; //little endian
+    this.rabinPubKeyHash = toHex(
+      bsv.crypto.Hash.sha256ripemd160(Buffer.from(oracleConfig.pubKey, "hex"))
     );
   }
 }
@@ -64,30 +75,31 @@ export type ParamUtxo = {
   address: string;
 };
 
-export async function createNftAuctionContractTx(
-  provider: SensiblequeryProvider,
-  {
-    nftSigner,
-    witnessOracle,
-    nftInput,
-    senderAddress,
-    startBsvPrice,
-    endTimeStamp,
-    opreturnData,
-    utxos,
-    changeAddress,
-  }: {
-    nftSigner: NftSigner;
-    witnessOracle: WitnessOracle;
-    senderAddress: string;
-    startBsvPrice: number;
-    endTimeStamp: number;
-    nftInput: NftInput;
-    opreturnData?: any;
-    utxos: ParamUtxo[];
-    changeAddress?: string;
-  }
-): Promise<{
+export async function createNftAuctionContractTx({
+  nftSigner,
+  witnessOracle,
+  nftInput,
+  feeAmount,
+  feeAddress,
+  senderAddress,
+  startBsvPrice,
+  endTimeStamp,
+  opreturnData,
+  utxos,
+  changeAddress,
+}: {
+  nftSigner: NftSigner;
+  witnessOracle: WitnessOracle;
+  feeAmount: number;
+  feeAddress: string;
+  senderAddress: string;
+  startBsvPrice: number;
+  endTimeStamp: number;
+  nftInput: NftInput;
+  opreturnData?: any;
+  utxos: ParamUtxo[];
+  changeAddress?: string;
+}): Promise<{
   nftAuctionContract: NftAuction;
   txComposer: TxComposer;
   auctionContractHash: string;
@@ -102,19 +114,23 @@ export async function createNftAuctionContractTx(
     );
   }
 
+  let network = new bsv.Address(utxos[0].address).network.alias;
+
   let nftAuctionContract = NftAuctionFactory.createContract();
   nftAuctionContract.setFormatedDataPart({
     rabinPubKeyHashArrayHash:
       nftSigner.rabinPubKeyHashArrayHash.toString("hex"),
-    timeRabinPubkeyHash: witnessOracle.rabinPubKeyHash.toString("hex"),
+    timeRabinPubkeyHash: witnessOracle.rabinPubKeyHash,
     endTimestamp: endTimeStamp,
     nftID: toHex(nftProto.getNftID(nftInput.lockingScript.toBuffer())),
     nftCodeHash: nftInput.codehash,
+    feeAmount,
+    feeAddress: new bsv.Address(feeAddress).hashBuffer.toString("hex"),
     startBsvPrice,
     senderAddress: new bsv.Address(senderAddress).hashBuffer.toString("hex"),
     bidTimestamp: 0,
     bidBsvPrice: 0,
-    bidderAddress: getZeroAddress(provider.network).hashBuffer.toString("hex"),
+    bidderAddress: getZeroAddress(network as any).hashBuffer.toString("hex"),
     sensibleID: {
       txid: utxos[0].txId,
       index: utxos[0].outputIndex,
@@ -156,8 +172,33 @@ export async function createNftAuctionContractTx(
   };
 }
 
+createNftAuctionContractTx.estimateFee = function ({
+  utxoMaxCount = 3,
+  opreturnData,
+}: {
+  utxoMaxCount?: number;
+  opreturnData?: any;
+}) {
+  let p2pkhInputNum = utxoMaxCount;
+  let stx = new SizeTransaction();
+  for (let i = 0; i < p2pkhInputNum; i++) {
+    stx.addP2PKHInput();
+  }
+
+  stx.addOutput(NftAuctionFactory.getLockingScriptSize());
+
+  if (opreturnData) {
+    stx.addOpReturnOutput(
+      bsv.Script.buildSafeDataOut(opreturnData).toBuffer().length
+    );
+  }
+
+  stx.addP2PKHOutput();
+  return stx.getFee();
+};
+
 export async function createNftForAuctionContractTx(
-  provider: SensiblequeryProvider,
+  provider: Provider,
   {
     nftInput,
     auctionContractHash,
@@ -188,10 +229,11 @@ export async function createNftForAuctionContractTx(
   let nftForAuctionContract = NftForAuctionFactory.createContract(
     new Bytes(auctionContractHash)
   );
+
   nftForAuctionContract.setFormatedDataPart({
     codehash: nftInput.codehash,
     auctionContractHash,
-    nftID: toHex(nftProto.getNftID(nftInput.lockingScript.toBuffer())),
+    nftID: nftInput.nftID,
   });
 
   const txComposer = new TxComposer();
@@ -233,6 +275,31 @@ export async function createNftForAuctionContractTx(
   };
 }
 
+createNftForAuctionContractTx.estimateFee = function ({
+  utxoMaxCount = 3,
+  opreturnData,
+}: {
+  utxoMaxCount?: number;
+  opreturnData?: any;
+}) {
+  let p2pkhInputNum = utxoMaxCount;
+  let stx = new SizeTransaction();
+  for (let i = 0; i < p2pkhInputNum; i++) {
+    stx.addP2PKHInput();
+  }
+
+  stx.addOutput(NftForAuctionFactory.getLockingScriptSize());
+
+  if (opreturnData) {
+    stx.addOpReturnOutput(
+      bsv.Script.buildSafeDataOut(opreturnData).toBuffer().length
+    );
+  }
+
+  stx.addP2PKHOutput();
+  return stx.getFee();
+};
+
 export type NftAuctionInput = {
   txId: string;
   outputIndex: number;
@@ -254,6 +321,8 @@ export type NftAuctionInput = {
   preBsvBidPrice?: number;
   preBidder?: bsv.Address;
 
+  feeAmount?: number;
+  feeAddress?: bsv.Address;
   bsvBidPrice?: number;
   bidder?: bsv.Address;
   senderAddress?: bsv.Address;
@@ -270,8 +339,16 @@ type NftAuctionUtxo = {
   outputIndex: number;
 };
 
+export async function getNftAuctionUtxo(
+  provider: NftAuctionProvider,
+  { nftID }: { nftID: string }
+) {
+  let codehash = NftAuctionFactory.getDummyInstance().getCodeHash();
+  return await provider.getNftAuctionUtxo(codehash, nftID);
+}
+
 export async function getNftAuctionInput(
-  provider: SensiblequeryProvider,
+  provider: Provider,
   {
     nftAuctionUtxo,
   }: {
@@ -283,13 +360,13 @@ export async function getNftAuctionInput(
     outputIndex: nftAuctionUtxo.outputIndex,
   };
 
-  let txHex = await provider.getRawTxData(nftAuctionInput.txId);
+  let txHex = await provider.getRawTx(nftAuctionInput.txId);
   const tx = new bsv.Transaction(txHex);
 
   let input = tx.inputs[0];
   let preTxId = input.prevTxId.toString("hex");
   let preOutputIndex = input.outputIndex;
-  let preTxHex = await provider.getRawTxData(preTxId);
+  let preTxHex = await provider.getRawTx(preTxId);
   const preTx = new bsv.Transaction(preTxHex);
 
   nftAuctionInput.satotxInfo = {
@@ -312,6 +389,9 @@ export async function getNftAuctionInput(
     nftAuctionInput.preBidder = getZeroAddress(provider.network);
     nftAuctionInput.preBsvBidPrice = 0;
     nftAuctionInput.preBidTimestamp = 0;
+
+    nftAuctionInput.preBidder = getZeroAddress(provider.network);
+    nftAuctionInput.preBsvBidPrice = 0;
   } else {
     nftAuctionInput.preBidder = bsv.Address.fromPublicKeyHash(
       Buffer.from(nftAuctionProto.getBidderAddress(preScriptBuf), "hex"),
@@ -322,6 +402,12 @@ export async function getNftAuctionInput(
     nftAuctionInput.preBidTimestamp =
       nftAuctionProto.getBidTimestamp(preScriptBuf);
   }
+
+  nftAuctionInput.feeAddress = bsv.Address.fromPublicKeyHash(
+    Buffer.from(nftAuctionProto.getFeeAddress(curScriptBuf), "hex"),
+    provider.network
+  );
+  nftAuctionInput.feeAmount = nftAuctionProto.getFeeAmount(curScriptBuf);
 
   nftAuctionInput.senderAddress = bsv.Address.fromPublicKeyHash(
     Buffer.from(nftAuctionProto.getSenderAddress(curScriptBuf), "hex"),
@@ -382,7 +468,6 @@ export async function createBidTx({
     ]);
 
   let oracleData = await witnessOracle.api.getTimestamp();
-
   const txComposer = new TxComposer();
   let prevouts = new Prevouts();
 
@@ -432,7 +517,6 @@ export async function createBidTx({
       .getOutput(opreturnOutputIndex)
       .script.toHex();
   }
-
   //The first round of calculations get the exact size of the final transaction, and then change again
   //Due to the change, the script needs to be unlocked again in the second round
   //let the fee to be exact in the second round
@@ -476,7 +560,7 @@ export async function createBidTx({
       timeRabinMsg: new Bytes(oracleData.digest),
       timeRabinPadding: new Bytes(oracleData.signatures.rabin.padding),
       timeRabinSig: new Bytes(oracleData.signatures.rabin.signature),
-      timeRabinPubKey: new Bytes(witnessOracle.rabinPubKey.toString("hex")),
+      timeRabinPubKey: new Bytes(witnessOracle.rabinPubKey),
 
       rabinMsg: rabinDatas[0].rabinMsg,
       rabinPaddingArray: rabinDatas[0].rabinPaddingArray,
@@ -496,13 +580,46 @@ export async function createBidTx({
       .getInput(nftAuctionInputIndex)
       .setScript(unlockingContract.toScript() as bsv.Script);
   }
-
   txComposer.checkFeeRate();
 
   return {
     txComposer,
   };
 }
+
+createBidTx.estimateFee = function ({
+  nftAuctionInput,
+  opreturnData,
+  utxoMaxCount = 10,
+}: {
+  nftAuctionInput: NftAuctionInput;
+  opreturnData?: any;
+  utxoMaxCount?: number;
+}) {
+  let p2pkhInputNum = utxoMaxCount;
+
+  let stx = new SizeTransaction();
+  stx.addInput(
+    NftAuctionFactory.calBidUnlockingScriptSize(opreturnData),
+    nftAuctionInput.satoshis
+  );
+  for (let i = 0; i < p2pkhInputNum; i++) {
+    stx.addP2PKHInput();
+  }
+
+  stx.addOutput(NftAuctionFactory.getLockingScriptSize());
+
+  if (nftAuctionInput.bsvBidPrice > 0) {
+    stx.addP2PKHOutput();
+  }
+  if (opreturnData) {
+    stx.addOpReturnOutput(
+      bsv.Script.buildSafeDataOut(opreturnData).toBuffer().length
+    );
+  }
+  stx.addP2PKHOutput();
+  return stx.getFee();
+};
 
 export async function createWithdrawTx({
   nftSigner,
@@ -649,6 +766,11 @@ export async function createWithdrawTx({
     });
   }
 
+  txComposer.appendP2PKHOutput({
+    address: nftAuctionInput.feeAddress,
+    satoshis: nftAuctionInput.feeAmount,
+  });
+
   //tx addOutput OpReturn
   let opreturnScriptHex = "";
   if (opreturnData) {
@@ -693,7 +815,7 @@ export async function createWithdrawTx({
       timeRabinMsg: new Bytes(oracleData.digest),
       timeRabinPadding: new Bytes(oracleData.signatures.rabin.padding),
       timeRabinSig: new Bytes(oracleData.signatures.rabin.signature),
-      timeRabinPubKey: new Bytes(witnessOracle.rabinPubKey.toString("hex")),
+      timeRabinPubKey: new Bytes(witnessOracle.rabinPubKey),
 
       rabinMsg: nftAuctionRabinData.rabinDatas[0].rabinMsg,
       rabinPaddingArray: nftAuctionRabinData.rabinDatas[0].rabinPaddingArray,
@@ -798,7 +920,7 @@ export async function createWithdrawTx({
       timeRabinMsg: new Bytes(oracleData.digest),
       timeRabinPadding: new Bytes(oracleData.signatures.rabin.padding),
       timeRabinSig: new Bytes(oracleData.signatures.rabin.signature),
-      timeRabinPubKey: new Bytes(witnessOracle.rabinPubKey.toString("hex")),
+      timeRabinPubKey: new Bytes(witnessOracle.rabinPubKey),
       senderPubKey: new PubKey(hasBidder ? "00" : PLACE_HOLDER_PUBKEY),
       senderSig: new Sig(hasBidder ? "00" : PLACE_HOLDER_SIG),
     });
@@ -807,9 +929,103 @@ export async function createWithdrawTx({
       .setScript(unlockCall2.toScript() as bsv.Script);
   }
 
+  txComposer.dumpTx();
   txComposer.checkFeeRate();
 
   return {
     txComposer,
   };
 }
+
+createWithdrawTx.estimateFee = function ({
+  nftAuctionInput,
+  nftInput,
+  opreturnData,
+  utxoMaxCount = 10,
+}: {
+  nftAuctionInput: NftAuctionInput;
+  nftInput: NftInput;
+  opreturnData?: any;
+  utxoMaxCount?: number;
+}) {
+  let p2pkhInputNum = utxoMaxCount;
+
+  let genesisScript = nftInput.preNftAddress.hashBuffer.equals(
+    Buffer.alloc(20, 0)
+  )
+    ? new Bytes(nftInput.preLockingScript.toHex())
+    : new Bytes("");
+
+  let hasBidder = nftAuctionInput.bsvBidPrice != 0;
+
+  let stx = new SizeTransaction();
+
+  stx.addInput(
+    NftForAuctionFactory.calUnlockingScriptSize(p2pkhInputNum),
+    stx.getDustThreshold(NftForAuctionFactory.getLockingScriptSize())
+  );
+  stx.addInput(
+    NftAuctionFactory.calUnlockUnlockingScriptSize(opreturnData),
+    nftAuctionInput.satoshis
+  );
+
+  stx.addInput(
+    NftFactory.calUnlockingScriptSize(
+      p2pkhInputNum,
+      genesisScript,
+      NftForAuctionFactory.createDummyTx().getRawHex(),
+      opreturnData,
+      nftProto.NFT_OP_TYPE.UNLOCK_FROM_CONTRACT
+    ),
+    nftInput.satoshis
+  );
+
+  for (let i = 0; i < p2pkhInputNum; i++) {
+    stx.addP2PKHInput();
+  }
+
+  let otherOutputsLen = 0;
+  if (opreturnData) {
+    otherOutputsLen =
+      otherOutputsLen +
+      4 +
+      8 +
+      4 +
+      bsv.Script.buildSafeDataOut(opreturnData).toBuffer().length;
+  }
+  if (hasBidder) {
+    otherOutputsLen = otherOutputsLen + 4 + 8 + 4 + 25;
+  }
+  otherOutputsLen = otherOutputsLen + 4 + 8 + 4 + 25;
+
+  let otherOutputs = new Bytes(toHex(Buffer.alloc(otherOutputsLen, 0)));
+
+  stx.addInput(
+    NftUnlockContractCheckFactory.calUnlockingScriptSize(
+      NFT_UNLOCK_CONTRACT_TYPE.OUT_6,
+      stx.inputs.length + 1,
+      otherOutputs
+    ),
+    stx.getDustThreshold(
+      NftUnlockContractCheckFactory.getLockingScriptSize(
+        NFT_UNLOCK_CONTRACT_TYPE.OUT_6
+      )
+    )
+  );
+
+  stx.addOutput(NftFactory.getLockingScriptSize());
+
+  let extraFee = nftAuctionInput.feeAmount;
+  if (hasBidder) {
+    stx.addP2PKHOutput();
+    extraFee += nftAuctionInput.bsvBidPrice;
+  }
+  stx.addP2PKHOutput();
+
+  if (opreturnData) {
+    stx.addOpReturnOutput(
+      bsv.Script.buildSafeDataOut(opreturnData).toBuffer().length
+    );
+  }
+  return stx.getFee() + extraFee;
+};

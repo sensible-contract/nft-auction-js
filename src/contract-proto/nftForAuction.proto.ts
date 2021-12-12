@@ -42,8 +42,8 @@ export function getAuctionContractHash(script: Buffer) {
 }
 
 export type FormatedDataPart = {
-  codehash: string;
-  nftID: string;
+  codehash?: string;
+  nftID?: string;
   auctionContractHash?: string;
   protoVersion?: number;
   protoType?: Proto.PROTO_TYPE;

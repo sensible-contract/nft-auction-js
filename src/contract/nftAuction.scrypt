@@ -4,42 +4,6 @@ import "rabinUtil.scrypt";
 
 contract NftAuction {
 
-  function checkData(bytes preScript,bytes script,int slen):bool{
-      
-      bytes senderAddress = NftAuctionProto.getSenderAddress(preScript,slen);
-      int startBsvPrice = Util.fromLEUnsigned(NftAuctionProto.getStartBsvPrice(preScript,slen));
-      bytes timeRabinPubKeyHash = NftAuctionProto.getTimeRabinPubkeyHash(preScript,slen);
-      bytes nftCodeHash = NftAuctionProto.getNftCodehash(preScript,slen);
-      bytes nftID = NftAuctionProto.getNftID(preScript,slen);
-      int endTimeStamp = Util.fromLEUnsigned(NftAuctionProto.getEndTimestamp(preScript,slen));
-      bytes rabinPubkeyHashArrayHash = NftAuctionProto.getRabinPubkeyHashArrayHash(preScript,slen);
-      bytes sensibleId = NftAuctionProto.getSensibleID(preScript,slen);
-      bytes codeHash = NftAuctionProto.getContractCodeHash(preScript,slen);
-
-      bytes _senderAddress = NftAuctionProto.getSenderAddress(script,slen);
-      int _startBsvPrice = Util.fromLEUnsigned(NftAuctionProto.getStartBsvPrice(script,slen));
-      bytes _timeRabinPubKeyHash = NftAuctionProto.getTimeRabinPubkeyHash(script,slen);
-      bytes _nftCodeHash = NftAuctionProto.getNftCodehash(script,slen);
-      bytes _nftID = NftAuctionProto.getNftID(script,slen);
-      int _endTimeStamp = Util.fromLEUnsigned(NftAuctionProto.getEndTimestamp(script,slen));
-      bytes _rabinPubkeyHashArrayHash = NftAuctionProto.getRabinPubkeyHashArrayHash(script,slen);
-      bytes _sensibleId = NftAuctionProto.getSensibleID(script,slen);
-      bytes _codeHash = NftAuctionProto.getContractCodeHash(script,slen);
-
-      require(
-          senderAddress == _senderAddress && 
-          startBsvPrice == _startBsvPrice && 
-          timeRabinPubKeyHash == _timeRabinPubKeyHash && 
-          nftCodeHash == _nftCodeHash && 
-          nftID == _nftID && 
-          endTimeStamp == _endTimeStamp &&
-          rabinPubkeyHashArrayHash == _rabinPubkeyHashArrayHash &&
-          sensibleId == _sensibleId &&
-          codeHash == _codeHash
-      );
-      return true;
-  }
-
   public function unlock(
     SigHashPreimage txPreimage,
     bytes nftScript,
@@ -86,7 +50,6 @@ contract NftAuction {
 
     PayloadU4SpendByData pl = RabinUtil.loadPayloadU4SpendBy(rabinMsg);
     bytes preAuctionScript = NftAuctionProto.getNewBidScript(auctionScript,auctionScriptLen,preTimestamp,preBsvBidPrice,preBidder,sensibleID);
-    this.checkData(preAuctionScript,auctionScript,auctionScriptLen); 
 
     require(pl.byTxId == thisOutpoint[ : 32]);
     require(pl.outpoint==sensibleID || hash160(preAuctionScript) == pl.scriptHash);
@@ -115,6 +78,11 @@ contract NftAuction {
       outputs = nftOutput + collectionOutput;
     }
 
+    bytes feeAddress = NftAuctionProto.getFeeAddress(auctionScript,auctionScriptLen);
+    int feeAmount = Util.fromLEUnsigned(NftAuctionProto.getFeeAmount(auctionScript,auctionScriptLen));
+    bytes feeScript = Util.buildPublicKeyHashScript(Ripemd160(feeAddress));
+    bytes feeOutput = Util.buildOutput(feeScript, feeAmount);
+
     bytes opReturnOutput = b'';
     if (len(opReturnScript) > 0) {
       require(opReturnScript[: 2] == b'006a');
@@ -127,7 +95,7 @@ contract NftAuction {
       changeOutput = Util.buildOutput(changeScript, changeSatoshis);
     }
 
-    bytes hashOutput = hash256(outputs + opReturnOutput + changeOutput);
+    bytes hashOutput = hash256(outputs + feeOutput + opReturnOutput + changeOutput);
     require(hashOutput == Util.hashOutputs(txPreimage));
   }
 
@@ -189,7 +157,6 @@ contract NftAuction {
     bytes thisOutpoint = Util.outpoint(txPreimage);
     bytes preAuctionScript = NftAuctionProto.getNewBidScript(auctionScript,auctionScriptLen,preBidTimestamp,preBsvBidPrice,preBidder,sensibleID);
 
-    this.checkData(preAuctionScript,auctionScript,auctionScriptLen);
     require(pl.byTxId == thisOutpoint[ : 32]);
     require(pl.outpoint==sensibleID || hash160(preAuctionScript) == pl.scriptHash);
 

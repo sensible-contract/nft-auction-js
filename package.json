@@ -1,8 +1,9 @@
 {
-  "name": "nft-auction-js",
-  "version": "0.1.0-beta.3",
+  "name": "@sensible-contract/nft-auction-js",
+  "version": "1.0.0",
   "description": "Sensible Contract NFT Auction Javascript SDK",
   "main": "lib/index.js",
+  "types": "lib/index.d.ts",
   "engines": {
     "node": ">=12.0.0"
   },
@@ -22,12 +23,15 @@
   ],
   "author": "sensiblecontract.org",
   "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
   "dependencies": {
-    "@sensible-contract/nft-js": "^0.1.1-beta.1",
+    "@sensible-contract/nft-js": "^1.0.0",
     "@sensible-contract/witnessonchain-api": "^0.1.0"
   },
   "devDependencies": {
-    "@sensible-contract/test-utils": "^0.1.0",
+    "@sensible-contract/test-utils": "^1.0.0",
     "@types/chai": "^4.2.20",
     "@types/mocha": "^8.2.2",
     "@types/node": "^16.11.9",

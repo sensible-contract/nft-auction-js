@@ -16,12 +16,11 @@ import {
   SIGNER_NUM,
   SIGNER_VERIFY_NUM,
 } from "@sensible-contract/nft-js/lib/contract-proto/nft.proto";
-import { SensiblequeryProvider } from "@sensible-contract/providers";
-import { InputInfo, SatotxSigner, Utils } from "@sensible-contract/sdk-core";
+import { InputInfo, SatotxSigner } from "@sensible-contract/sdk-core";
 import {
   dummyRabinKeypairs,
+  MockProvider,
   MockSatotxApi,
-  MockSensibleApi,
 } from "@sensible-contract/test-utils";
 import {
   createBidTx,
@@ -116,7 +115,7 @@ Alice:      ${Alice.address.toString()}  ${Alice.publicKey.toString()}
 Bob:        ${Bob.address.toString()}  ${Bob.publicKey.toString()}
 `);
 
-let sensibleApi = new MockSensibleApi();
+let mockProvider = new MockProvider();
 async function genDummyFeeUtxos(satoshis: number, count: number = 1) {
   let feeTx = new bsv.Transaction();
   let unitSatoshis = Math.ceil(satoshis / count);
@@ -147,20 +146,20 @@ async function genDummyFeeUtxos(satoshis: number, count: number = 1) {
       address: FeePayer.address.toString(),
     });
   }
-  await sensibleApi.broadcast(feeTx.serialize(true));
+  await mockProvider.broadcast(feeTx.serialize(true));
   return utxos;
 }
 function cleanBsvUtxos() {
-  sensibleApi.cleanBsvUtxos();
+  mockProvider.cleanBsvUtxos();
 }
 let oracleConfig = {
   apiPrefix: "https://woc.satoplay.com",
   pubKey:
-    "2c8c0117aa5edba9a4539e783b6a1bdbc1ad88ad5b57f3d9c5cba55001c45e1fedb877ebc7d49d1cfa8aa938ccb303c3a37732eb0296fee4a6642b0ff1976817b603404f64c41ec098f8cd908caf64b4a3aada220ff61e252ef6d775079b69451367eda8fdb37bc55c8bfd69610e1f31b9d421ff44e3a0cfa7b11f334374827256a0b91ce80c45ffb798798e7bd6b110134e1a3c3fa89855a19829aab3922f55da92000495737e99e0094e6c4dbcc4e8d8de5459355c21ff055d039a202076e4ca263b745a885ef292eec0b5a5255e6ecc45534897d9572c3ebe97d36626c7b1e775159e00b17d03bc6d127260e13a252afd89bab72e8daf893075f18c1840cb394f18a9817913a9462c6ffc8951bee50a05f38da4c9090a4d6868cb8c955e5efb4f3be4e7cf0be1c399d78a6f6dd26a0af8492dca67843c6da9915bae571aa9f4696418ab1520dd50dd05f5c0c7a51d2843bd4d9b6b3b79910e98f3d98099fd86d71b2fac290e32bdacb31943a8384a7668c32a66be127b74390b4b0dec6455",
+    "5564ec0d4b0b39747b12be662ac368764a38a84319b3acbd320e29ac2f1bd786fd9980d9f3980e91793b6b9b4dbd43281da5c7c0f505dd50dd2015ab186469f4a91a57ae5b91a96d3c8467ca2d49f80a6ad26d6f8ad799c3e10bcfe7e43b4ffb5e5e958ccb68684d0a09c9a48df3050ae5be5189fc6f2c46a9137981a9184f39cb40188cf1753089af8d2eb7ba89fd2a253ae16072126dbc037db1009e1575e7b1c72666d397be3e2c57d997485345cc6e5e25a5b5c0ee92f25e885a743b26cae47620209a035d05ff215c355954ded8e8c4bc4d6c4e09e0997e7395040092da552f92b3aa2998a15598a83f3c1a4e1310b1d67b8e7998b7ff450ce81cb9a05672827443331fb1a7cfa0e344ff21d4b9311f0e6169fd8b5cc57bb3fda8ed671345699b0775d7f62e251ef60f22daaaa3b464af8c90cdf898c01ec4644f4003b6176897f10f2b64a6e4fe9602eb3277a3c303b3cc38a98afa1c9dd4c7eb77b8ed1f5ec40150a5cbc5d9f3575bad88adc1db1b6a3b789e53a4a9db5eaa17018c2c",
 };
 describe("Auction Test", () => {
-  describe("has bidder test ", () => {
-    let provider: SensiblequeryProvider;
+  describe.only("has bidder test ", () => {
+    let provider: MockProvider;
     let nftSigner: NftSigner;
     let witnessOracle: WitnessOracle;
     let codehash: string;
@@ -170,13 +169,12 @@ describe("Auction Test", () => {
     let g_nftAuctionRet: any;
     let g_nftForAuctionRet: any;
     let auctionContractHash: string;
-    const auctionEndTime = Date.now() + 1000 * 20;
+    const auctionEndTime = Date.now() + 1000 * 30;
     function printTime() {
       console.log(Math.floor((Date.now() - auctionEndTime) / 1000) + "s");
     }
     before(async () => {
-      provider = sensibleApi;
-      provider.network = "mainnet";
+      provider = mockProvider;
 
       nftSigner = new NftSigner({
         signerSelecteds,
@@ -187,8 +185,8 @@ describe("Auction Test", () => {
       });
       nftSigner.signers = satotxSigners;
 
-      witnessOracle = new WitnessOracle();
-      sensibleApi.cleanCacheds();
+      witnessOracle = new WitnessOracle(oracleConfig);
+      mockProvider.cleanCacheds();
     });
 
     afterEach(() => {});
@@ -207,21 +205,26 @@ describe("Auction Test", () => {
       txComposer.unlock(sigResults);
       let _res = getNftGenesisInfo(nftSigner, txComposer.getRawHex());
       await provider.broadcast(txComposer.getRawHex());
-      // Utils.dumpTx(_res.tx);
       genesis = _res.genesis;
       codehash = _res.codehash;
       sensibleId = _res.sensibleId;
       printTime();
     });
     it("mint Nft should be ok", async () => {
-      let genesisInput = await getNftGenesisInput(provider, {
-        codehash,
-        genesis,
-        sensibleId,
-      });
+      let { genesisInput, genesisContract } = await getNftGenesisInput(
+        mockProvider,
+        {
+          codehash,
+          genesis,
+          sensibleId,
+        }
+      );
 
-      let estimateFee = createNftMintTx.estimateFee({ genesisInput });
-      let utxos = await genDummyFeeUtxos(estimateFee);
+      let fee1 = createNftMintTx.estimateFee({ genesisInput });
+      let fee2 = createNftMetaDataTx.estimateFee({
+        metaData: { name: "pig", description: "", image: "" },
+      });
+      let utxos = await genDummyFeeUtxos(fee1 + fee2);
 
       let nftMetaDataRet = await createNftMetaDataTx({
         utxos,
@@ -242,14 +245,8 @@ describe("Auction Test", () => {
           address: FeePayer.address,
         },
       ];
-      let { genesisContract } = await createNftGenesisTx({
-        nftSigner,
-        genesisPublicKey: genesisInput.publicKey,
-        totalSupply: genesisInput.totalSupply.toString(10),
-        utxos,
-      });
 
-      let { txComposer } = await createNftMintTx(provider, {
+      let { txComposer } = await createNftMintTx({
         nftSigner,
         genesisInput,
         genesisContract,
@@ -264,7 +261,7 @@ describe("Auction Test", () => {
       );
       txComposer.unlock(sigResults);
       await provider.broadcast(nftMetaDataRet.txComposer.getRawHex());
-      await sensibleApi.broadcast(txComposer.getRawHex());
+      await provider.broadcast(txComposer.getRawHex());
       printTime();
     });
     it("nftAuction ", async () => {
@@ -278,11 +275,14 @@ describe("Auction Test", () => {
         genesis,
         nftUtxo,
       });
-      let utxos = await genDummyFeeUtxos(1000000, utxoMaxCount);
-      let nftAuctionRet = await createNftAuctionContractTx(provider, {
+      let fee = createNftAuctionContractTx.estimateFee({ utxoMaxCount });
+      let utxos = await genDummyFeeUtxos(fee, utxoMaxCount);
+      let nftAuctionRet = await createNftAuctionContractTx({
         nftSigner,
         witnessOracle,
         nftInput,
+        feeAddress: CoffeeShop.address.toString(),
+        feeAmount: 1000,
         senderAddress: CoffeeShop.address.toString(),
         startBsvPrice: 500,
         endTimeStamp: auctionEndTime,
@@ -308,9 +308,6 @@ describe("Auction Test", () => {
 
     it("first bid ", async () => {
       // cleanBsvUtxos();
-      let utxoMaxCount = 3;
-      let utxos = await genDummyFeeUtxos(1000000, utxoMaxCount);
-
       let nftAuctionUtxo = {
         txId: g_nftAuctionRet.txComposer.getTxId(),
         outputIndex: 0,
@@ -318,6 +315,11 @@ describe("Auction Test", () => {
       let nftAuctionInput = await getNftAuctionInput(provider, {
         nftAuctionUtxo,
       });
+
+      let utxoMaxCount = 3;
+      let fee = createBidTx.estimateFee({ nftAuctionInput, utxoMaxCount });
+      let utxos = await genDummyFeeUtxos(fee, utxoMaxCount);
+
       let nftAuctionRet = await createBidTx({
         nftSigner,
         witnessOracle,
@@ -326,7 +328,6 @@ describe("Auction Test", () => {
         bidderAddress: CoffeeShop.address.toString(),
         utxos,
       });
-
       nftAuctionRet.txComposer.unlock(
         signSigHashList(
           nftAuctionRet.txComposer.getRawHex(),
@@ -344,8 +345,6 @@ describe("Auction Test", () => {
 
     it("second bid ", async () => {
       // cleanBsvUtxos();
-      let utxoMaxCount = 3;
-      let utxos = await genDummyFeeUtxos(1000000, utxoMaxCount);
 
       let nftAuctionUtxo = {
         txId: g_nftAuctionRet.txComposer.getTxId(),
@@ -354,6 +353,10 @@ describe("Auction Test", () => {
       let nftAuctionInput = await getNftAuctionInput(provider, {
         nftAuctionUtxo,
       });
+
+      let utxoMaxCount = 3;
+      let fee = createBidTx.estimateFee({ nftAuctionInput, utxoMaxCount });
+      let utxos = await genDummyFeeUtxos(fee, utxoMaxCount);
       let nftAuctionRet = await createBidTx({
         nftSigner,
         witnessOracle,
@@ -371,13 +374,13 @@ describe("Auction Test", () => {
       );
 
       await provider.broadcast(nftAuctionRet.txComposer.getRawHex());
+
       g_nftAuctionRet = nftAuctionRet;
       printTime();
     });
 
     it("send nft to nftForAuction should be ok", async () => {
       let utxoMaxCount = 3;
-      let utxos = await genDummyFeeUtxos(1000000, utxoMaxCount);
 
       let _res = await provider.getNftUtxoDetail(codehash, genesis, "0");
       let nftUtxo = _res as any;
@@ -386,6 +389,10 @@ describe("Auction Test", () => {
         genesis,
         nftUtxo,
       });
+
+      let fee1 = createNftForAuctionContractTx.estimateFee({ utxoMaxCount });
+      let fee2 = createNftTransferTx.estimateFee({ nftInput, utxoMaxCount: 1 });
+      let utxos = await genDummyFeeUtxos(fee1 + fee2, utxoMaxCount);
 
       let nftForAuctionRet = await createNftForAuctionContractTx(provider, {
         nftInput,
@@ -399,7 +406,15 @@ describe("Auction Test", () => {
         )
       );
 
-      utxos = await genDummyFeeUtxos(1000000, utxoMaxCount);
+      utxos = [
+        {
+          txId: nftForAuctionRet.txComposer.getTxId(),
+          outputIndex: 1,
+          satoshis: nftForAuctionRet.txComposer.getOutput(1).satoshis,
+          address: FeePayer.address,
+        },
+      ];
+
       let { txComposer } = await createNftTransferTx({
         nftSigner,
         nftInput,
@@ -425,7 +440,6 @@ describe("Auction Test", () => {
       await sleep(10);
       // cleanBsvUtxos();
       let utxoMaxCount = 3;
-      let utxos = await genDummyFeeUtxos(1000000, utxoMaxCount);
 
       let _res = await provider.getNftUtxoDetail(codehash, genesis, "0");
       let nftUtxo = _res as any;
@@ -435,7 +449,25 @@ describe("Auction Test", () => {
         nftUtxo,
       });
 
-      let tokenIndex = "0";
+      let nftAuctionUtxo = {
+        txId: g_nftAuctionRet.txComposer.getTxId(),
+        outputIndex: 0,
+      };
+      let nftAuctionInput = await getNftAuctionInput(provider, {
+        nftAuctionUtxo,
+      });
+
+      let fee1 = createNftUnlockCheckContractTx.estimateFee({
+        nftUnlockType: NFT_UNLOCK_CONTRACT_TYPE.OUT_6,
+        utxoMaxCount,
+      });
+      let fee2 = createWithdrawTx.estimateFee({
+        nftInput,
+        nftAuctionInput,
+      });
+
+      console.log(fee2);
+      let utxos = await genDummyFeeUtxos(fee1 + fee2, utxoMaxCount);
 
       let unlockCheckRet = await createNftUnlockCheckContractTx({
         nftUnlockType: NFT_UNLOCK_CONTRACT_TYPE.OUT_6,
@@ -444,7 +476,6 @@ describe("Auction Test", () => {
         utxos,
       });
 
-      // Utils.dumpTx(tokenUnlockRet.txComposer.getTx());
       unlockCheckRet.txComposer.unlock(
         signSigHashList(
           unlockCheckRet.txComposer.getRawHex(),
@@ -460,14 +491,6 @@ describe("Auction Test", () => {
           address: FeePayer.address,
         },
       ];
-
-      let nftAuctionUtxo = {
-        txId: g_nftAuctionRet.txComposer.getTxId(),
-        outputIndex: 0,
-      };
-      let nftAuctionInput = await getNftAuctionInput(provider, {
-        nftAuctionUtxo,
-      });
 
       let { txComposer } = await createWithdrawTx({
         nftSigner,
@@ -490,13 +513,12 @@ describe("Auction Test", () => {
         unlockCheckRet.txComposer.getRawHex()
       );
       console.log("unlockCheck: ", txid1);
-      Utils.dumpTx(txComposer.getTx());
       await provider.broadcast(txComposer.getRawHex());
     });
   });
 
   describe("no bidder test ", () => {
-    let provider: SensiblequeryProvider;
+    let provider: MockProvider;
     let nftSigner: NftSigner;
     let witnessOracle: WitnessOracle;
     let codehash: string;
@@ -512,7 +534,7 @@ describe("Auction Test", () => {
       console.log(Math.floor((Date.now() - auctionEndTime) / 1000) + "s");
     }
     before(async () => {
-      provider = sensibleApi;
+      provider = mockProvider;
       provider.network = "mainnet";
 
       nftSigner = new NftSigner({
@@ -526,7 +548,7 @@ describe("Auction Test", () => {
 
       witnessOracle = new WitnessOracle();
 
-      sensibleApi.cleanCacheds();
+      provider.cleanCacheds();
     });
 
     afterEach(() => {});
@@ -545,21 +567,26 @@ describe("Auction Test", () => {
       txComposer.unlock(sigResults);
       let _res = getNftGenesisInfo(nftSigner, txComposer.getRawHex());
       await provider.broadcast(txComposer.getRawHex());
-      // Utils.dumpTx(_res.tx);
       genesis = _res.genesis;
       codehash = _res.codehash;
       sensibleId = _res.sensibleId;
       printTime();
     });
     it("mint Nft should be ok", async () => {
-      let genesisInput = await getNftGenesisInput(provider, {
-        codehash,
-        genesis,
-        sensibleId,
-      });
+      let { genesisInput, genesisContract } = await getNftGenesisInput(
+        provider,
+        {
+          codehash,
+          genesis,
+          sensibleId,
+        }
+      );
 
-      let estimateFee = createNftMintTx.estimateFee({ genesisInput });
-      let utxos = await genDummyFeeUtxos(estimateFee);
+      let fee1 = createNftMetaDataTx.estimateFee({
+        metaData: { name: "pig", description: "", image: "" },
+      });
+      let fee2 = createNftMintTx.estimateFee({ genesisInput });
+      let utxos = await genDummyFeeUtxos(fee1 + fee2);
 
       let nftMetaDataRet = await createNftMetaDataTx({
         utxos,
@@ -580,14 +607,8 @@ describe("Auction Test", () => {
           address: FeePayer.address,
         },
       ];
-      let { genesisContract } = await createNftGenesisTx({
-        nftSigner,
-        genesisPublicKey: genesisInput.publicKey,
-        totalSupply: genesisInput.totalSupply.toString(10),
-        utxos,
-      });
 
-      let { txComposer } = await createNftMintTx(provider, {
+      let { txComposer } = await createNftMintTx({
         nftSigner,
         genesisInput,
         genesisContract,
@@ -602,7 +623,7 @@ describe("Auction Test", () => {
       );
       txComposer.unlock(sigResults);
       await provider.broadcast(nftMetaDataRet.txComposer.getRawHex());
-      await sensibleApi.broadcast(txComposer.getRawHex());
+      await provider.broadcast(txComposer.getRawHex());
       printTime();
     });
     it("nftAuction ", async () => {
@@ -616,11 +637,14 @@ describe("Auction Test", () => {
         genesis,
         nftUtxo,
       });
-      let utxos = await genDummyFeeUtxos(1000000, utxoMaxCount);
-      let nftAuctionRet = await createNftAuctionContractTx(provider, {
+      let fee = createNftAuctionContractTx.estimateFee({ utxoMaxCount });
+      let utxos = await genDummyFeeUtxos(fee, utxoMaxCount);
+      let nftAuctionRet = await createNftAuctionContractTx({
         nftSigner,
         witnessOracle,
         nftInput,
+        feeAddress: CoffeeShop.address.toString(),
+        feeAmount: 1000,
         senderAddress: CoffeeShop.address.toString(),
         startBsvPrice: 500,
         endTimeStamp: auctionEndTime,
@@ -646,7 +670,6 @@ describe("Auction Test", () => {
 
     it("send nft to nftForAuction should be ok", async () => {
       let utxoMaxCount = 3;
-      let utxos = await genDummyFeeUtxos(1000000, utxoMaxCount);
 
       let _res = await provider.getNftUtxoDetail(codehash, genesis, "0");
       let nftUtxo = _res as any;
@@ -655,6 +678,10 @@ describe("Auction Test", () => {
         genesis,
         nftUtxo,
       });
+
+      let fee1 = createNftForAuctionContractTx.estimateFee({ utxoMaxCount });
+      let fee2 = createNftTransferTx.estimateFee({ nftInput, utxoMaxCount: 1 });
+      let utxos = await genDummyFeeUtxos(fee1 + fee2, utxoMaxCount);
 
       let nftForAuctionRet = await createNftForAuctionContractTx(provider, {
         nftInput,
@@ -668,7 +695,15 @@ describe("Auction Test", () => {
         )
       );
 
-      utxos = await genDummyFeeUtxos(1000000, utxoMaxCount);
+      utxos = [
+        {
+          txId: nftForAuctionRet.txComposer.getTxId(),
+          outputIndex: 1,
+          satoshis: nftForAuctionRet.txComposer.getOutput(1).satoshis,
+          address: FeePayer.address,
+        },
+      ];
+
       let { txComposer } = await createNftTransferTx({
         nftSigner,
         nftInput,
@@ -713,7 +748,6 @@ describe("Auction Test", () => {
         utxos,
       });
 
-      // Utils.dumpTx(tokenUnlockRet.txComposer.getTx());
       unlockCheckRet.txComposer.unlock(
         signSigHashList(
           unlockCheckRet.txComposer.getRawHex(),
@@ -759,7 +793,6 @@ describe("Auction Test", () => {
         unlockCheckRet.txComposer.getRawHex()
       );
       console.log("unlockCheck: ", txid1);
-      Utils.dumpTx(txComposer.getTx());
       await provider.broadcast(txComposer.getRawHex());
     });
   });

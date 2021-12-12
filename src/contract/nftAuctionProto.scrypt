@@ -13,7 +13,9 @@ library NftAuctionProto {
     //  <bidBsvPrice>(8byte) +
     //  <bidTimestamp>(8byte) +
     //  <sendderAddress(20byte)> +
-    //  <startBsvPrice(8byte)> + 
+    //  <startBsvPrice(8byte)> +
+    //  <feeAddress>(20byte) +
+    //  <feeAmount>(20byte) +
     //  <nftCodeHash>(20byte) +
     //  <nftID>(20byte) + 
     //  <endTimeStamp>(8byte) +
@@ -28,6 +30,8 @@ library NftAuctionProto {
     static const int BID_TIMESTAMP_LEN = 8;
     static const int SENDDER_ADDRESS_LEN = 20;
     static const int START_BSV_PRICE_LEN = 8;
+    static const int FEE_ADDRESS_LEN = 20;
+    static const int FEE_AMOUNT_LEN = 8;
     static const int NFT_CODE_HASH_LEN = 20;
     static const int NFT_ID_LEN = 20;
     static const int END_TIMESTAMP_LEN = 8;
@@ -40,7 +44,9 @@ library NftAuctionProto {
     static int BID_TIMESTAMP_OFFSET = BID_BSV_PRICE_OFFSET + BID_TIMESTAMP_LEN;
     static int SENDER_ADDRESS_OFFSET = BID_TIMESTAMP_OFFSET + SENDDER_ADDRESS_LEN;
     static int START_BSV_PRICE_OFFESET = SENDER_ADDRESS_OFFSET + START_BSV_PRICE_LEN;
-    static int NFT_CODE_HASH_OFFSET = START_BSV_PRICE_OFFESET + NFT_CODE_HASH_LEN;
+    static int FEE_ADDRESS_OFFSET = START_BSV_PRICE_OFFESET + FEE_ADDRESS_LEN;
+    static int FEE_AMOUNT_OFFSET = FEE_ADDRESS_OFFSET + FEE_AMOUNT_LEN;
+    static int NFT_CODE_HASH_OFFSET = FEE_AMOUNT_OFFSET + NFT_CODE_HASH_LEN;
     static int NFT_ID_OFFSET = NFT_CODE_HASH_OFFSET + NFT_ID_LEN;
     static int END_TIMESTAMP_OFFSET = NFT_ID_OFFSET + END_TIMESTAMP_LEN;
     static int TIME_RABIN_PUBKEY_HASH_OFFSET = END_TIMESTAMP_OFFSET + TIME_RABIN_PUBKEY_HASH_LEN;
@@ -70,6 +76,14 @@ library NftAuctionProto {
 
     static function getBidTimestamp(bytes script, int slen) : bytes {
         return script[slen - BID_TIMESTAMP_OFFSET : slen - BID_TIMESTAMP_OFFSET + BID_TIMESTAMP_LEN];
+    }
+
+    static function getFeeAddress(bytes script,int slen) : bytes {
+        return script[slen - FEE_ADDRESS_OFFSET : slen - FEE_ADDRESS_OFFSET + FEE_ADDRESS_LEN];
+    }
+
+    static function getFeeAmount(bytes script,int slen) : bytes {
+        return script[slen - FEE_AMOUNT_OFFSET : slen - FEE_AMOUNT_OFFSET + FEE_AMOUNT_LEN];
     }
 
     static function getNftCodehash(bytes script, int slen) : bytes {
