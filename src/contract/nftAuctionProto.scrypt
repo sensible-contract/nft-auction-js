@@ -114,8 +114,13 @@ library NftAuctionProto {
         return unpack(script[slen - DATA_LEN - 3 : slen - DATA_LEN - 2] + b'00') == 0x6a;
     }
 
-    static function getNewBidScript(bytes script, int slen,int bidEndTimestamp, int bidBsvPrice, bytes bidderAddress, bytes sensibleId) : bytes {
-        return script[: slen - BID_TIMESTAMP_OFFSET] + Util.toLEUnsigned(bidEndTimestamp, 8) + Util.toLEUnsigned(bidBsvPrice, 8) + bidderAddress + sensibleId+script[slen - ProtoHeader.HEADER_LEN:];
+    // static function getNewBidScript(bytes script, int slen,int bidEndTimestamp, int bidBsvPrice, bytes bidderAddress, bytes sensibleId) : bytes {
+    //     return script[: slen - BID_TIMESTAMP_OFFSET] + Util.toLEUnsigned(bidEndTimestamp, 8) + Util.toLEUnsigned(bidBsvPrice, 8) + bidderAddress + sensibleId+script[slen - ProtoHeader.HEADER_LEN:];
+    // }
+
+    static function getNewBidScript(bytes script, int slen,int feeAmount,int bidTmestamp, int bidBsvPrice, bytes bidderAddress, bytes sensibleId) : bytes {
+        return script[:slen-FEE_AMOUNT_OFFSET]+Util.toLEUnsigned(feeAmount, 8) + script[slen-FEE_ADDRESS_OFFSET:slen - BID_TIMESTAMP_OFFSET] +
+        Util.toLEUnsigned(bidTmestamp, 8) + Util.toLEUnsigned(bidBsvPrice, 8) + bidderAddress + sensibleId+script[slen - ProtoHeader.HEADER_LEN:];
     }
 
     static function checkProtoHeader(bytes script, int slen) : bool {

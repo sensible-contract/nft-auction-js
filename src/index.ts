@@ -35,7 +35,7 @@ import {
 import * as nftAuctionProto from "./contract-proto/nftAuction.proto";
 const Signature = bsv.crypto.Signature;
 export const sighashType = Signature.SIGHASH_ALL | Signature.SIGHASH_FORKID;
-
+const FEE_RATE = 0.05;
 let defaultOracleConfig = {
   apiPrefix: "https://witnessonchain.com/v1",
   pubKey:
@@ -79,7 +79,6 @@ export async function createNftAuctionContractTx({
   nftSigner,
   witnessOracle,
   nftInput,
-  feeAmount,
   feeAddress,
   senderAddress,
   startBsvPrice,
@@ -90,7 +89,6 @@ export async function createNftAuctionContractTx({
 }: {
   nftSigner: NftSigner;
   witnessOracle: WitnessOracle;
-  feeAmount: number;
   feeAddress: string;
   senderAddress: string;
   startBsvPrice: number;
@@ -124,7 +122,7 @@ export async function createNftAuctionContractTx({
     endTimestamp: endTimeStamp,
     nftID: toHex(nftProto.getNftID(nftInput.lockingScript.toBuffer())),
     nftCodeHash: nftInput.codehash,
-    feeAmount,
+    feeAmount: 0,
     feeAddress: new bsv.Address(feeAddress).hashBuffer.toString("hex"),
     startBsvPrice,
     senderAddress: new bsv.Address(senderAddress).hashBuffer.toString("hex"),
@@ -317,6 +315,7 @@ export type NftAuctionInput = {
 
   // senderAddress: bsv.Address;
 
+  preFeeAmount?: number;
   preBidTimestamp?: number;
   preBsvBidPrice?: number;
   preBidder?: bsv.Address;
@@ -389,6 +388,7 @@ export async function getNftAuctionInput(
     nftAuctionInput.preBidder = getZeroAddress(provider.network);
     nftAuctionInput.preBsvBidPrice = 0;
     nftAuctionInput.preBidTimestamp = 0;
+    nftAuctionInput.preFeeAmount = 0;
 
     nftAuctionInput.preBidder = getZeroAddress(provider.network);
     nftAuctionInput.preBsvBidPrice = 0;
@@ -401,6 +401,7 @@ export async function getNftAuctionInput(
       nftAuctionProto.getBidBsvPrice(preScriptBuf);
     nftAuctionInput.preBidTimestamp =
       nftAuctionProto.getBidTimestamp(preScriptBuf);
+    nftAuctionInput.preFeeAmount = nftAuctionProto.getFeeAmount(preScriptBuf);
   }
 
   nftAuctionInput.feeAddress = bsv.Address.fromPublicKeyHash(
@@ -485,10 +486,12 @@ export async function createBidTx({
     return inputIndex;
   });
 
+  let feeAmount = Math.ceil(bsvBidPrice * FEE_RATE);
   let nftAuctionScriptBuf = nftAuctionInput.lockingScript.toBuffer();
   let dataPartObj = nftAuctionProto.parseDataPart(nftAuctionScriptBuf);
   dataPartObj.bidTimestamp = oracleData.timestamp * 1000;
   dataPartObj.bidBsvPrice = bsvBidPrice;
+  dataPartObj.feeAmount = feeAmount;
   dataPartObj.bidderAddress = new bsv.Address(
     bidderAddress
   ).hashBuffer.toString("hex");
@@ -497,16 +500,21 @@ export async function createBidTx({
     dataPartObj
   );
 
+  console.log("output", bsvBidPrice, feeAmount);
   txComposer.appendOutput({
     lockingScript: bsv.Script.fromBuffer(newNftAuctionScript),
-    satoshis: bsvBidPrice,
+    satoshis: bsvBidPrice + feeAmount,
   });
 
   if (nftAuctionInput.bsvBidPrice > 0) {
     txComposer.appendP2PKHOutput({
       address: nftAuctionInput.bidder,
-      satoshis: nftAuctionInput.bsvBidPrice,
+      satoshis: Math.ceil(nftAuctionInput.bsvBidPrice * (1 + FEE_RATE)),
     });
+    console.log(
+      "refund",
+      Math.ceil(nftAuctionInput.bsvBidPrice * (1 + FEE_RATE))
+    );
   }
 
   //tx addOutput OpReturn
@@ -570,12 +578,12 @@ export async function createBidTx({
       rabinPubKeyHashArray: nftSigner.rabinPubKeyHashArray,
     });
 
-    let ret = unlockingContract.verify({
-      tx: txComposer.getTx(),
-      inputIndex: nftAuctionInputIndex,
-      inputSatoshis: txComposer.getInput(nftAuctionInputIndex).output.satoshis,
-    });
-    if (ret.success == false) throw ret;
+    // let ret = unlockingContract.verify({
+    //   tx: txComposer.getTx(),
+    //   inputIndex: nftAuctionInputIndex,
+    //   inputSatoshis: txComposer.getInput(nftAuctionInputIndex).output.satoshis,
+    // });
+    // if (ret.success == false) throw ret;
     txComposer
       .getInput(nftAuctionInputIndex)
       .setScript(unlockingContract.toScript() as bsv.Script);
@@ -609,7 +617,9 @@ createBidTx.estimateFee = function ({
 
   stx.addOutput(NftAuctionFactory.getLockingScriptSize());
 
+  let extraFee = Math.ceil(nftAuctionInput.feeAmount * (1 + FEE_RATE));
   if (nftAuctionInput.bsvBidPrice > 0) {
+    //refund
     stx.addP2PKHOutput();
   }
   if (opreturnData) {
@@ -618,7 +628,8 @@ createBidTx.estimateFee = function ({
     );
   }
   stx.addP2PKHOutput();
-  return stx.getFee();
+
+  return stx.getFee() + extraFee;
 };
 
 export async function createWithdrawTx({
@@ -771,6 +782,11 @@ export async function createWithdrawTx({
     satoshis: nftAuctionInput.feeAmount,
   });
 
+  console.log(
+    nftAuctionInput.preFeeAmount,
+    nftAuctionInput.feeAmount,
+    "feeAmount"
+  );
   //tx addOutput OpReturn
   let opreturnScriptHex = "";
   if (opreturnData) {
@@ -798,6 +814,7 @@ export async function createWithdrawTx({
       ),
       nftScript: new Bytes(nftInput.lockingScript.toBuffer().toString("hex")),
       nftOutputSatoshis: nftInput.satoshis,
+      preFeeAmount: nftAuctionInput.preFeeAmount,
       preBidTimestamp: nftAuctionInput.preBidTimestamp,
       preBsvBidPrice: nftAuctionInput.preBsvBidPrice,
       preBidder: new Ripemd160(

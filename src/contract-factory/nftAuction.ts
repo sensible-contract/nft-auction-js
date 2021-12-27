@@ -90,6 +90,7 @@ export class NftAuction extends ContractAdapter {
     txPreimage,
     nftScript,
     nftOutputSatoshis,
+    preFeeAmount,
     preBidTimestamp,
     preBsvBidPrice,
     preBidder,
@@ -110,11 +111,12 @@ export class NftAuction extends ContractAdapter {
     senderSig,
   }: {
     txPreimage: SigHashPreimage;
-    nftScript?: Bytes;
-    nftOutputSatoshis?: number;
-    preBidTimestamp?: number;
-    preBsvBidPrice?: number;
-    preBidder?: Ripemd160;
+    nftScript: Bytes;
+    nftOutputSatoshis: number;
+    preFeeAmount: number;
+    preBidTimestamp: number;
+    preBsvBidPrice: number;
+    preBidder: Ripemd160;
     changeAddress?: Ripemd160;
     changeSatoshis?: number;
     opReturnScript?: Bytes;
@@ -135,6 +137,7 @@ export class NftAuction extends ContractAdapter {
       txPreimage,
       nftScript,
       nftOutputSatoshis,
+      preFeeAmount,
       preBidTimestamp,
       preBsvBidPrice,
       preBidder,
@@ -341,6 +344,7 @@ export class NftAuctionFactory {
         nftContractInstance.lockingScript.toBuffer().toString("hex")
       ),
       nftOutputSatoshis: dummySatoshis,
+      preFeeAmount: dummySatoshis,
       preBidTimestamp: Date.now(),
       preBsvBidPrice: dummySatoshis,
       preBidder: new Ripemd160(toHex(dummyAddress.hashBuffer)),

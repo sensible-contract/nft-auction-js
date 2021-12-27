@@ -63,7 +63,7 @@ contract nftForAuction {
     require(_timestamp > timestamp);
 
     bytes sensibleID = NftAuctionProto.getSensibleID(auctionScript, auctionScriptLen);
-    bytes _nftAuctionScript = NftAuctionProto.getNewBidScript(auctionScript, auctionScriptLen,0,0,NftAuctionProto.NULL_ADDRESS,sensibleID);
+    bytes _nftAuctionScript = NftAuctionProto.getNewBidScript(auctionScript, auctionScriptLen,0,0,0,NftAuctionProto.NULL_ADDRESS,sensibleID);
     require(this.auctionContractHash == hash160(_nftAuctionScript));
 
     bytes _timeRabinPubKeyHash = NftAuctionProto.getTimeRabinPubkeyHash(auctionScript,auctionScriptLen);

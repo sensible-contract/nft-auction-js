@@ -158,7 +158,7 @@ let oracleConfig = {
     "5564ec0d4b0b39747b12be662ac368764a38a84319b3acbd320e29ac2f1bd786fd9980d9f3980e91793b6b9b4dbd43281da5c7c0f505dd50dd2015ab186469f4a91a57ae5b91a96d3c8467ca2d49f80a6ad26d6f8ad799c3e10bcfe7e43b4ffb5e5e958ccb68684d0a09c9a48df3050ae5be5189fc6f2c46a9137981a9184f39cb40188cf1753089af8d2eb7ba89fd2a253ae16072126dbc037db1009e1575e7b1c72666d397be3e2c57d997485345cc6e5e25a5b5c0ee92f25e885a743b26cae47620209a035d05ff215c355954ded8e8c4bc4d6c4e09e0997e7395040092da552f92b3aa2998a15598a83f3c1a4e1310b1d67b8e7998b7ff450ce81cb9a05672827443331fb1a7cfa0e344ff21d4b9311f0e6169fd8b5cc57bb3fda8ed671345699b0775d7f62e251ef60f22daaaa3b464af8c90cdf898c01ec4644f4003b6176897f10f2b64a6e4fe9602eb3277a3c303b3cc38a98afa1c9dd4c7eb77b8ed1f5ec40150a5cbc5d9f3575bad88adc1db1b6a3b789e53a4a9db5eaa17018c2c",
 };
 describe("Auction Test", () => {
-  describe.only("has bidder test ", () => {
+  describe("has bidder test ", () => {
     let provider: MockProvider;
     let nftSigner: NftSigner;
     let witnessOracle: WitnessOracle;
@@ -282,7 +282,6 @@ describe("Auction Test", () => {
         witnessOracle,
         nftInput,
         feeAddress: CoffeeShop.address.toString(),
-        feeAmount: 1000,
         senderAddress: CoffeeShop.address.toString(),
         startBsvPrice: 500,
         endTimeStamp: auctionEndTime,
@@ -644,7 +643,6 @@ describe("Auction Test", () => {
         witnessOracle,
         nftInput,
         feeAddress: CoffeeShop.address.toString(),
-        feeAmount: 1000,
         senderAddress: CoffeeShop.address.toString(),
         startBsvPrice: 500,
         endTimeStamp: auctionEndTime,

@@ -8,6 +8,7 @@ contract NftAuction {
     SigHashPreimage txPreimage,
     bytes nftScript,
     int nftOutputSatoshis,
+    int preFeeAmount,
     int preTimestamp,
     int preBsvBidPrice,
     Ripemd160 preBidder,
@@ -49,7 +50,7 @@ contract NftAuction {
     RabinUtil.verifyRabinMsg(rabinPubKeyVerifyArray, rabinMsg, rabinPaddingArray, rabinSigArray);
 
     PayloadU4SpendByData pl = RabinUtil.loadPayloadU4SpendBy(rabinMsg);
-    bytes preAuctionScript = NftAuctionProto.getNewBidScript(auctionScript,auctionScriptLen,preTimestamp,preBsvBidPrice,preBidder,sensibleID);
+    bytes preAuctionScript = NftAuctionProto.getNewBidScript(auctionScript,auctionScriptLen,preFeeAmount,preTimestamp,preBsvBidPrice,preBidder,sensibleID);
 
     require(pl.byTxId == thisOutpoint[ : 32]);
     require(pl.outpoint==sensibleID || hash160(preAuctionScript) == pl.scriptHash);
@@ -155,7 +156,10 @@ contract NftAuction {
 
     PayloadU4SpendByData pl = RabinUtil.loadPayloadU4SpendBy(rabinMsg);
     bytes thisOutpoint = Util.outpoint(txPreimage);
-    bytes preAuctionScript = NftAuctionProto.getNewBidScript(auctionScript,auctionScriptLen,preBidTimestamp,preBsvBidPrice,preBidder,sensibleID);
+
+    int divFeeRate = 20;
+    int preFeeAmount = preBsvBidPrice / divFeeRate;
+    bytes preAuctionScript = NftAuctionProto.getNewBidScript(auctionScript,auctionScriptLen,preFeeAmount,preBidTimestamp,preBsvBidPrice,preBidder,sensibleID);
 
     require(pl.byTxId == thisOutpoint[ : 32]);
     require(pl.outpoint==sensibleID || hash160(preAuctionScript) == pl.scriptHash);
@@ -166,14 +170,16 @@ contract NftAuction {
       int lastBidPrice = Util.fromLEUnsigned(NftAuctionProto.getBidBsvPrice(auctionScript, auctionScriptLen));
       require(bsvBidPrice > lastBidPrice);
 
+      int lastFeeAmount = Util.fromLEUnsigned(NftAuctionProto.getFeeAmount(auctionScript, auctionScriptLen));
       bytes refunOutputScript = Util.buildPublicKeyHashScript(Ripemd160(lastBidder));
-      refunOutput = Util.buildOutput(refunOutputScript, lastBidPrice);
+      refunOutput = Util.buildOutput(refunOutputScript, lastBidPrice + lastFeeAmount);
     }
     else {
       require(bsvBidPrice >= Util.fromLEUnsigned(NftAuctionProto.getStartBsvPrice(auctionScript,auctionScriptLen)));
     }
-    bytes newAuctionScript = NftAuctionProto.getNewBidScript(auctionScript, auctionScriptLen,bidTimestamp, bsvBidPrice, bidder, sensibleID);
-    bytes auctionOuput = Util.buildOutput(newAuctionScript, bsvBidPrice);
+    int feeAmount = bsvBidPrice / divFeeRate;
+    bytes newAuctionScript = NftAuctionProto.getNewBidScript(auctionScript, auctionScriptLen,feeAmount,bidTimestamp, bsvBidPrice, bidder, sensibleID);
+    bytes auctionOuput = Util.buildOutput(newAuctionScript, bsvBidPrice + feeAmount);
 
     bytes opReturnOutput = b'';
     if (len(opReturnScript) > 0) {
