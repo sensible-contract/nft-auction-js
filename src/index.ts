@@ -617,7 +617,7 @@ createBidTx.estimateFee = function ({
 
   stx.addOutput(NftAuctionFactory.getLockingScriptSize());
 
-  let extraFee = Math.ceil(nftAuctionInput.feeAmount * (1 + FEE_RATE));
+  let extraFee = nftAuctionInput.bsvBidPrice + nftAuctionInput.feeAmount;
   if (nftAuctionInput.bsvBidPrice > 0) {
     //refund
     stx.addP2PKHOutput();
@@ -629,7 +629,7 @@ createBidTx.estimateFee = function ({
   }
   stx.addP2PKHOutput();
 
-  return stx.getFee() + extraFee;
+  return stx.getSize() * stx.feeRate + extraFee;
 };
 
 export async function createWithdrawTx({
